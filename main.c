@@ -93,6 +93,15 @@ struct mat3x3 mat3x3_translate(float x, float y) {
     };
 }
 
+void mat3x3_print(struct mat3x3 mat) {
+    for (int i=0; i<3; ++i) {
+        for (int j=0; j<3; ++j) {
+            printf("%f ", mat.data[i*3 + j]);
+        }
+        printf("\n");
+    }
+}
+
 struct mat3x3 mat3x3_mul(struct mat3x3 a, struct mat3x3 b) {
     struct mat3x3 ret;
     for (int i=0; i<9; ++i) {
@@ -104,6 +113,7 @@ struct mat3x3 mat3x3_mul(struct mat3x3 a, struct mat3x3 b) {
 
         ret.data[i] = vec3_dot(a_row, b_col);
     }
+    return ret;
 }
 
 static void error_callback(int error, const char* description)
@@ -176,19 +186,21 @@ int main(void)
                           sizeof(Vertex), (void*) offsetof(Vertex, col));
  
     float angle = 0;
+    float tslate_y = 0;
 
     struct timespec last;
     clock_gettime(CLOCK_MONOTONIC, &last);
 
     while (!glfwWindowShouldClose(window))
     {
+        // track time since last iteration
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
-
         float delta_s = diff_time(last, now);
 
         int width, height;
-        struct mat3x3 txfm; 
+
+
         glfwGetFramebufferSize(window, &width, &height);
         const float ratio = width / (float) height;
  
@@ -198,7 +210,9 @@ int main(void)
         glUseProgram(program);
         glBindVertexArray(vertex_array);
 
-        txfm = mat3x3_translate(0, angle);
+        struct mat3x3 txfm;
+        txfm = mat3x3_rot(angle);
+        txfm = mat3x3_mul(mat3x3_translate(0, tslate_y), txfm);
         glUniformMatrix3fv(0, 1, true, txfm.data);
         glDrawArrays(GL_TRIANGLES, 0, 3);
  
@@ -206,9 +220,14 @@ int main(void)
         glfwPollEvents();
 
         // radians/sec
-        const float rotation_rate = 1*M_PI;
-        angle += rotation_rate * delta_s;
+        const float ROTATION_RATE = 1*M_PI;
+        angle += ROTATION_RATE * delta_s;
         angle = fmodf(angle, 2*M_PI);
+
+
+        const float UP_SPEED = 0.5;
+        tslate_y += UP_SPEED * delta_s;
+
         last = now;
     }
 
