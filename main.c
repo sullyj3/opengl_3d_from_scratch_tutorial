@@ -79,10 +79,22 @@ struct mat4x4 mat4x4_rot_z(float angle) {
     float s = sin(angle);
 
     return (struct mat4x4) {
-	c, -s, 0, 0,
-	s,  c, 0, 0,
-	0,  0, 1, 0,
-	0,  0, 0, 1
+    c, -s, 0, 0,
+    s,  c, 0, 0,
+    0,  0, 1, 0,
+    0,  0, 0, 1
+    };
+}
+
+struct mat4x4 mat4x4_rot_x(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+
+    return (struct mat4x4) {
+    1,  0,  0,  0,
+    0,  c, -s,  0,
+    0,  s,  c,  0,
+    0,  0,  0,  1
     };
 }
 
@@ -155,15 +167,20 @@ int main(void)
     }
  
     glfwMakeContextCurrent(window);
+    // enable vsync
     glfwSwapInterval(1);
  
     // NOTE: OpenGL error checks have been omitted for brevity
  
+    // Create and bind a Vertex Buffer Object (VBO)
     GLuint vertex_buffer;
     glGenBuffers(1, &vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+
+    // Copy vertex data to the VBO
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
  
+    // Create shaders
     const GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
     glCompileShader(vertex_shader);
@@ -172,14 +189,18 @@ int main(void)
     glShaderSource(fragment_shader, 1, &fragment_shader_text, NULL);
     glCompileShader(fragment_shader);
  
+
     const GLuint program = glCreateProgram();
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
     glLinkProgram(program);
  
+    // Create Vertex Array Object (VAO)
     GLuint vertex_array;
     glGenVertexArrays(1, &vertex_array);
     glBindVertexArray(vertex_array);
+
+    // Specify the layout of the vertex data
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
                           sizeof(Vertex), (void*) offsetof(Vertex, pos));
@@ -187,25 +208,26 @@ int main(void)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
                           sizeof(Vertex), (void*) offsetof(Vertex, col));
  
+    // Program specific state
     float angle = 0;
     float tslate_y = 0;
 
     struct timespec last;
     clock_gettime(CLOCK_MONOTONIC, &last);
+    struct timespec now;
 
     while (!glfwWindowShouldClose(window))
     {
         // track time since last iteration
-        struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         float delta_s = diff_time(last, now);
 
+        // get current window size
         int width, height;
-
-
         glfwGetFramebufferSize(window, &width, &height);
         const float ratio = width / (float) height;
  
+        // set viewport 
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT);
  
@@ -213,8 +235,9 @@ int main(void)
         glBindVertexArray(vertex_array);
 
         struct mat4x4 txfm;
-        txfm = mat4x4_rot_z(angle);
-        txfm = mat4x4_mul(mat4x4_translate(0, tslate_y, 0), txfm);
+        //txfm = mat4x4_rot_z(angle);
+        txfm = mat4x4_rot_x(angle);
+        //txfm = mat4x4_mul(mat4x4_translate(0, tslate_y, 0), txfm);
         glUniformMatrix4fv(0, 1, true, txfm.data);
         glDrawArrays(GL_TRIANGLES, 0, 3);
  
@@ -225,7 +248,6 @@ int main(void)
         const float ROTATION_RATE = 1*M_PI;
         angle += ROTATION_RATE * delta_s;
         angle = fmodf(angle, 2*M_PI);
-
 
         const float UP_SPEED = 0.5;
         tslate_y += UP_SPEED * delta_s;
