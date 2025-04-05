@@ -78,33 +78,33 @@ struct mat4x4 mat4x4_rot_z(float angle) {
     float c = cos(angle);
     float s = sin(angle);
 
-    return (struct mat4x4) {
-    c, -s, 0, 0,
-    s,  c, 0, 0,
-    0,  0, 1, 0,
-    0,  0, 0, 1
-    };
+    return (struct mat4x4) {{
+        c, -s, 0, 0,
+        s,  c, 0, 0,
+        0,  0, 1, 0,
+        0,  0, 0, 1
+    }};
 }
 
 struct mat4x4 mat4x4_rot_x(float angle) {
     float c = cos(angle);
     float s = sin(angle);
 
-    return (struct mat4x4) {
-    1,  0,  0,  0,
-    0,  c, -s,  0,
-    0,  s,  c,  0,
-    0,  0,  0,  1
-    };
+    return (struct mat4x4) {{
+        1,  0,  0,  0,
+        0,  c, -s,  0,
+        0,  s,  c,  0,
+        0,  0,  0,  1
+    }};
 }
 
 struct mat4x4 mat4x4_translate(float x, float y, float z) {
-    return (struct mat4x4) {
+    return (struct mat4x4) {{
         1, 0, 0, x,
         0, 1, 0, y,
         0, 0, 1, z,
         0, 0, 0, 1,
-    };
+    }};
 }
 
 void mat4x4_print(struct mat4x4 mat) {
@@ -130,16 +130,41 @@ struct mat4x4 mat4x4_mul(struct mat4x4 a, struct mat4x4 b) {
     return ret;
 }
 
+// n: near
+// f: far
+struct mat4x4 perspective(float n, float f) {
+	// (an + b)/n = 0
+    // (af + b)/f = 1
+    // 
+    // an + b = 0
+    // -an = b
+    //
+    // (af - an)/f = 1
+    // a(f - n)/f = 1
+    // a = f/(f-n)
+    //
+    // b = -fn / (f - n)
+    float a = -f / (f-n);
+    float b = -f*n / (f-n);
+
+    return (struct mat4x4) {{
+        1, 0,  0, 0,
+        0, 1,  0, 0,
+        0, 0,  a, b,
+        0, 0, -1, 0,
+    }};
+}
+
 static void error_callback(int error, const char* description)
 {
     fprintf(stderr, "Error: %s\n", description);
 }
 
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
-}
+// static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+// {
+//     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+//         glfwSetWindowShouldClose(window, GLFW_TRUE);
+// }
 
 static float diff_time(struct timespec last, struct timespec now) {
     float ret = now.tv_sec - last.tv_sec;
@@ -231,7 +256,7 @@ int main(void)
         // get current window size
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
-        const float ratio = width / (float) height;
+        // const float ratio = width / (float) height;
  
         // set viewport 
         glViewport(0, 0, width, height);
@@ -240,10 +265,10 @@ int main(void)
         glUseProgram(program);
         glBindVertexArray(vertex_array);
 
-        struct mat4x4 txfm;
-        //txfm = mat4x4_rot_z(angle);
-        txfm = mat4x4_rot_x(angle);
-        //txfm = mat4x4_mul(mat4x4_translate(0, tslate_y, 0), txfm);
+        struct mat4x4 txfm = mat4x4_translate(0, 1, 0);
+        txfm = mat4x4_mul(mat4x4_rot_x(angle), txfm);
+        txfm = mat4x4_mul(mat4x4_translate(0,0,-5), txfm);
+        txfm = mat4x4_mul(perspective(0.1, 10), txfm);
         glUniformMatrix4fv(0, 1, true, txfm.data);
         glDrawArrays(GL_TRIANGLES, 0, 3);
  
