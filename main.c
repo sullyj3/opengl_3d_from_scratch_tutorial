@@ -173,8 +173,14 @@ int main(void)
     // NOTE: OpenGL error checks have been omitted for brevity
  
     // Create and bind a Vertex Buffer Object (VBO)
+    // variable to hold the handle to the buffer
     GLuint vertex_buffer;
+    // create the buffer, have gl write its handle into our variable
     glGenBuffers(1, &vertex_buffer);
+    // bind it 
+    // (I don't understand in detail what this means, but it
+    // represents our intent to use this particular buffer for 
+    // vertex data)
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
 
     // Copy vertex data to the VBO
