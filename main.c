@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 
 #include <stdbool.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
@@ -12,15 +13,33 @@
 typedef struct Vertex
 {
     float pos[3];
-    float col[3];
+    float col[3]; // color
 } Vertex;
 
-static const Vertex vertices[3] =
+static const Vertex vertices[4] =
 {
-    { { -0.6f, -0.4f, 0.0f }, { 1.f, 0.f, 0.f } },
-    { {  0.6f, -0.4f, 0.0f }, { 0.f, 1.f, 0.f } },
-    { {   0.f,  0.6f, 0.0f }, { 0.f, 0.f, 1.f } }
+    { { -0.5f, -0.5f, 0.0f }, { 0.f, 0.f, 0.f } },
+    { {  0.5f, -0.5f, 0.0f }, { 1.f, 0.f, 0.f } },
+    { { -0.5f,  0.5f, 0.0f }, { 0.f, 1.f, 0.f } },
+    { {  0.5f,  0.5f, 0.0f }, { 1.f, 1.f, 0.f } },
 };
+static const uint32_t indices[6] = {
+    0,1,2,
+    1,3,2
+};
+
+void load_model(void) {
+    char buf[4096];
+    FILE* f = fopen("positions.bin", "rb");
+    assert(f);
+    ssize_t read_len = fread(buf, 1, sizeof(buf), f);
+    assert(read_len >= 0);
+
+    float* positions = (float*)buf;
+    for (int i=0; i<read_len/4; i+=3) {
+        printf("%f %f %f\n", positions[i], positions[i+1], positions[i+2]); 
+    }
+}
 
 static const char* vertex_shader_text =
 "#version 460\n"
@@ -196,6 +215,7 @@ int main(void)
     glfwSwapInterval(1);
  
     // NOTE: OpenGL error checks have been omitted for brevity
+    load_model();
  
     // Create and bind a Vertex Buffer Object (VBO)
     // variable to hold the handle to the buffer
@@ -225,7 +245,7 @@ int main(void)
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
     glLinkProgram(program);
- 
+
     // Create Vertex Array Object (VAO)
     GLuint vertex_array;
     glGenVertexArrays(1, &vertex_array);
@@ -238,6 +258,13 @@ int main(void)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
                           sizeof(Vertex), (void*) offsetof(Vertex, col));
+
+    // Index buffer
+    // element buffer object
+    GLuint ebo;
+    glGenBuffers(1, &ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
  
     // Program specific state
     float angle = 0;
@@ -270,7 +297,8 @@ int main(void)
         txfm = mat4x4_mul(mat4x4_translate(0,0,-5), txfm);
         txfm = mat4x4_mul(perspective(0.1, 10), txfm);
         glUniformMatrix4fv(0, 1, true, txfm.data);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        /*glDrawArrays(GL_TRIANGLES, 0, 6);*/
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
  
         glfwSwapBuffers(window);
         glfwPollEvents();
