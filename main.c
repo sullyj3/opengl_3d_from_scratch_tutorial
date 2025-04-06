@@ -10,23 +10,23 @@
 #include <math.h>
 #include <time.h>
 
-typedef struct Vertex
-{
-    float pos[3];
-    float col[3]; // color
-} Vertex;
+/*typedef struct Vertex*/
+/*{*/
+/*    float pos[3];*/
+/*    float col[3]; // color*/
+/*} Vertex;*/
 
-static const Vertex vertices[4] =
-{
-    { { -0.5f, -0.5f, 0.0f }, { 0.f, 0.f, 0.f } },
-    { {  0.5f, -0.5f, 0.0f }, { 1.f, 0.f, 0.f } },
-    { { -0.5f,  0.5f, 0.0f }, { 0.f, 1.f, 0.f } },
-    { {  0.5f,  0.5f, 0.0f }, { 1.f, 1.f, 0.f } },
-};
-static const uint32_t indices[6] = {
-    0,1,2,
-    1,3,2
-};
+/*static const Vertex vertices[4] =*/
+/*{*/
+/*    { { -0.5f, -0.5f, 0.0f }, { 0.f, 0.f, 0.f } },*/
+/*    { {  0.5f, -0.5f, 0.0f }, { 1.f, 0.f, 0.f } },*/
+/*    { { -0.5f,  0.5f, 0.0f }, { 0.f, 1.f, 0.f } },*/
+/*    { {  0.5f,  0.5f, 0.0f }, { 1.f, 1.f, 0.f } },*/
+/*};*/
+/*static const uint32_t indices[6] = {*/
+/*    0,1,2,*/
+/*    1,3,2*/
+/*};*/
 
 struct buffer {
     char* data;
@@ -47,7 +47,12 @@ struct buffer load_file(const char* path, struct buffer* buf) {
     return ret;
 }
 
-void load_model(void) {
+struct model {
+    GLuint vao;
+    size_t num_indices;
+};
+
+struct model load_model(void) {
     size_t BUFSIZE = 4096;
     char buf_data[BUFSIZE];
     struct buffer buf = {buf_data, BUFSIZE};
@@ -67,6 +72,45 @@ void load_model(void) {
         printf("%d\n", indices[i]);
     }
 
+    // Create and bind a Vertex Buffer Object (VBO)
+    // variable to hold the handle to the buffer
+    GLuint vertex_buffer;
+    // create the buffer, have gl write its handle into our variable
+    glGenBuffers(1, &vertex_buffer);
+    // bind it 
+    // (I don't understand in detail what this means, but it
+    // represents our intent to use this particular buffer for 
+    // vertex data)
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+
+    // Copy vertex data to the VBO
+    glBufferData(GL_ARRAY_BUFFER, positions_buf.len, positions_buf.data, GL_STATIC_DRAW);
+ 
+    // Create Vertex Array Object (VAO)
+    GLuint vertex_array;
+    glGenVertexArrays(1, &vertex_array);
+    glBindVertexArray(vertex_array);
+
+    // Specify the layout of the vertex data
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
+    // glEnableVertexAttribArray(0);
+    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+    //                       sizeof(Vertex), (void*) offsetof(Vertex, col));
+
+    // Index buffer
+    // element buffer object
+    GLuint ebo;
+    glGenBuffers(1, &ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_buf.len, index_buf.data, GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+
+    return (struct model) {
+        .vao = vertex_array,
+        .num_indices = index_buf.len / sizeof(uint16_t)
+    };
 }
 
 static const char* vertex_shader_text =
@@ -87,7 +131,7 @@ static const char* fragment_shader_text =
 "out vec4 fragment;\n"
 "void main()\n"
 "{\n"
-"    fragment = vec4(color, 1.0);\n"
+"    fragment = vec4(1.0);\n"
 "}\n";
 
 struct vec4 {
@@ -180,7 +224,7 @@ struct mat4x4 mat4x4_mul(struct mat4x4 a, struct mat4x4 b) {
 // n: near
 // f: far
 struct mat4x4 perspective(float n, float f) {
-	// (an + b)/n = 0
+    // (an + b)/n = 0
     // (af + b)/f = 1
     // 
     // an + b = 0
@@ -243,21 +287,7 @@ int main(void)
     glfwSwapInterval(1);
  
     // NOTE: OpenGL error checks have been omitted for brevity
-    load_model();
- 
-    // Create and bind a Vertex Buffer Object (VBO)
-    // variable to hold the handle to the buffer
-    GLuint vertex_buffer;
-    // create the buffer, have gl write its handle into our variable
-    glGenBuffers(1, &vertex_buffer);
-    // bind it 
-    // (I don't understand in detail what this means, but it
-    // represents our intent to use this particular buffer for 
-    // vertex data)
-    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-
-    // Copy vertex data to the VBO
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    const struct model model = load_model();
  
     // Create shaders
     const GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
@@ -274,25 +304,6 @@ int main(void)
     glAttachShader(program, fragment_shader);
     glLinkProgram(program);
 
-    // Create Vertex Array Object (VAO)
-    GLuint vertex_array;
-    glGenVertexArrays(1, &vertex_array);
-    glBindVertexArray(vertex_array);
-
-    // Specify the layout of the vertex data
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
-                          sizeof(Vertex), (void*) offsetof(Vertex, pos));
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-                          sizeof(Vertex), (void*) offsetof(Vertex, col));
-
-    // Index buffer
-    // element buffer object
-    GLuint ebo;
-    glGenBuffers(1, &ebo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
  
     // Program specific state
     float angle = 0;
@@ -318,15 +329,14 @@ int main(void)
         glClear(GL_COLOR_BUFFER_BIT);
  
         glUseProgram(program);
-        glBindVertexArray(vertex_array);
+        glBindVertexArray(model.vao);
 
         struct mat4x4 txfm = mat4x4_translate(0, 1, 0);
         txfm = mat4x4_mul(mat4x4_rot_x(angle), txfm);
         txfm = mat4x4_mul(mat4x4_translate(0,0,-5), txfm);
         txfm = mat4x4_mul(perspective(0.1, 10), txfm);
         glUniformMatrix4fv(0, 1, true, txfm.data);
-        /*glDrawArrays(GL_TRIANGLES, 0, 6);*/
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, model.num_indices, GL_UNSIGNED_SHORT, 0);
  
         glfwSwapBuffers(window);
         glfwPollEvents();
