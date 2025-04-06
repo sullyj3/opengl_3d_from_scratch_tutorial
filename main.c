@@ -60,8 +60,16 @@ struct model load_model(void) {
     struct buffer positions_buf = load_file("positions.bin", &buf);
     float* positions = (float*)positions_buf.data;
     printf("positions:\n");
-    for (size_t i=0; i<positions_buf.len/4; i+=3) {
+    for (size_t i=0; i<positions_buf.len/sizeof(float); i+=3) {
         printf("%f %f %f\n", positions[i], positions[i+1], positions[i+2]); 
+    }
+    printf("\n");
+
+    struct buffer normals_buf = load_file("normals.bin", &buf);
+    float* normals = (float*)normals_buf.data;
+    printf("normals:\n");
+    for (size_t i=0; i<normals_buf.len/sizeof(float); i+=3) {
+        printf("%f %f %f\n", normals[i], normals[i+1], normals[i+2]); 
     }
     printf("\n");
 
@@ -71,6 +79,7 @@ struct model load_model(void) {
     for (size_t i=0; i<index_buf.len / sizeof(uint16_t); i++) {
         printf("%d\n", indices[i]);
     }
+
 
     // Create and bind a Vertex Buffer Object (VBO)
     // variable to hold the handle to the buffer

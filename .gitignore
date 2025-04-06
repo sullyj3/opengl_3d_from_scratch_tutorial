@@ -2,3 +2,4 @@ main
 .vscode
 positions.bin
 indices.bin
+normals.bin

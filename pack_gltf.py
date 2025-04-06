@@ -66,6 +66,14 @@ def parse_dump_cube():
 
     dump_accessor(
             gltf,
+            primitive['attributes']['NORMAL'],
+            'normals.bin',
+            ComponentType.FLOAT,
+            AccessorType.VEC3,
+            BufferViewTarget.ARRAY_BUFFER)
+
+    dump_accessor(
+            gltf,
             primitive['indices'],
             'indices.bin',
             ComponentType.UNSIGNED_SHORT,
@@ -73,4 +81,4 @@ def parse_dump_cube():
             BufferViewTarget.ELEMENT_ARRAY_BUFFER)
 
 if __name__ == '__main__':
-    parse_cube()
+    parse_dump_cube()
