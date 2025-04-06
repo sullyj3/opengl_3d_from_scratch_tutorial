@@ -80,32 +80,37 @@ struct model load_model(void) {
         printf("%d\n", indices[i]);
     }
 
-
-    // Create and bind a Vertex Buffer Object (VBO)
-    // variable to hold the handle to the buffer
-    GLuint vertex_buffer;
-    // create the buffer, have gl write its handle into our variable
-    glGenBuffers(1, &vertex_buffer);
-    // bind it 
-    // (I don't understand in detail what this means, but it
-    // represents our intent to use this particular buffer for 
-    // vertex data)
-    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-
-    // Copy vertex data to the VBO
-    glBufferData(GL_ARRAY_BUFFER, positions_buf.len, positions_buf.data, GL_STATIC_DRAW);
- 
     // Create Vertex Array Object (VAO)
     GLuint vertex_array;
     glGenVertexArrays(1, &vertex_array);
     glBindVertexArray(vertex_array);
 
+    // Create and bind a Vertex Buffer Object (VBO)
+    // variable to hold the handle to the buffer
+    GLuint position_buffer;
+    // create the buffer, have gl write its handle into our variable
+    glGenBuffers(1, &position_buffer);
+    // bind it 
+    // (I don't understand in detail what this means, but it
+    // represents our intent to use this particular buffer for 
+    // vertex data)
+    glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
+    // Copy vertex data to the VBO
+    glBufferData(GL_ARRAY_BUFFER, positions_buf.len, positions_buf.data, GL_STATIC_DRAW);
+ 
     // Specify the layout of the vertex data
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
     // glEnableVertexAttribArray(0);
     // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
     //                       sizeof(Vertex), (void*) offsetof(Vertex, col));
+
+    GLuint normals_buffer;
+    glGenBuffers(1, &normals_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, normals_buffer);
+    glBufferData(GL_ARRAY_BUFFER, normals_buf.len, normals_buf.data, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
 
     // Index buffer
     // element buffer object
@@ -124,23 +129,23 @@ struct model load_model(void) {
 
 static const char* vertex_shader_text =
 "#version 460\n"
-"layout(location = 0) in vec3 vCol;\n"
+"layout(location = 0) in vec3 vNorm;\n"
 "layout(location = 1) in vec3 vPos;\n"
 "layout(location = 0) uniform mat4 txfm;\n"
-"out vec3 color;\n"
+"out vec3 norm;\n"
 "void main()\n"
 "{\n"
 "    gl_Position = txfm * vec4(vPos, 1.0);\n"
-"    color = vCol;\n"
+"    norm = vNorm;\n"
 "}\n";
 
 static const char* fragment_shader_text =
 "#version 460\n"
-"in vec3 color;\n"
+"in vec3 norm;\n"
 "out vec4 fragment;\n"
 "void main()\n"
 "{\n"
-"    fragment = vec4(1.0);\n"
+"    fragment = vec4(abs(norm), 1.0);\n"
 "}\n";
 
 struct vec4 {
@@ -272,6 +277,23 @@ static float diff_time(struct timespec last, struct timespec now) {
     return ret;
 }
 
+
+GLuint compile_shader(GLenum shader_type, const char* shader_text) {
+    const GLuint shader = glCreateShader(shader_type);
+    glShaderSource(shader, 1, &shader_text, NULL);
+    glCompileShader(shader);
+    GLint compile_status;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &compile_status);
+    if (!compile_status) {
+        char buf[4096];
+        GLsizei n;
+        glGetShaderInfoLog(shader, 4096, &n, buf);
+        printf("Shader compilation failed.\n");
+        printf("%*s\n", n, buf);
+    }
+    return shader;
+}
+
 int main(void)
 {
     glfwSetErrorCallback(error_callback);
@@ -295,18 +317,10 @@ int main(void)
     // enable vsync
     glfwSwapInterval(1);
  
-    // NOTE: OpenGL error checks have been omitted for brevity
     const struct model model = load_model();
  
-    // Create shaders
-    const GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
-    glCompileShader(vertex_shader);
- 
-    const GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment_shader, 1, &fragment_shader_text, NULL);
-    glCompileShader(fragment_shader);
- 
+    const GLuint vertex_shader = compile_shader(GL_VERTEX_SHADER, vertex_shader_text);
+    const GLuint fragment_shader = compile_shader(GL_FRAGMENT_SHADER, fragment_shader_text);
 
     const GLuint program = glCreateProgram();
     glAttachShader(program, vertex_shader);
@@ -322,6 +336,8 @@ int main(void)
     clock_gettime(CLOCK_MONOTONIC, &last);
     struct timespec now;
 
+    glEnable(GL_DEPTH_TEST);
+
     while (!glfwWindowShouldClose(window))
     {
         // track time since last iteration
@@ -335,7 +351,7 @@ int main(void)
  
         // set viewport 
         glViewport(0, 0, width, height);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
  
         glUseProgram(program);
         glBindVertexArray(model.vao);
