@@ -28,17 +28,45 @@ static const uint32_t indices[6] = {
     1,3,2
 };
 
-void load_model(void) {
-    char buf[4096];
-    FILE* f = fopen("positions.bin", "rb");
-    assert(f);
-    ssize_t read_len = fread(buf, 1, sizeof(buf), f);
-    assert(read_len >= 0);
+struct buffer {
+    char* data;
+    size_t len;
+};
 
-    float* positions = (float*)buf;
-    for (int i=0; i<read_len/4; i+=3) {
+struct buffer load_file(const char* path, struct buffer* buf) {
+    FILE* f = fopen(path, "rb");
+    assert(f);
+    ssize_t read_len = fread(buf->data, 1, buf->len, f);
+    assert(read_len >= 0);
+    fclose(f);
+
+    struct buffer ret = {buf->data, read_len};
+    buf->data += read_len;
+    buf->len -= read_len;
+    printf("Read %ld bytes from %s.\n", read_len, path);
+    return ret;
+}
+
+void load_model(void) {
+    size_t BUFSIZE = 4096;
+    char buf_data[BUFSIZE];
+    struct buffer buf = {buf_data, BUFSIZE};
+
+    struct buffer positions_buf = load_file("positions.bin", &buf);
+    float* positions = (float*)positions_buf.data;
+    printf("positions:\n");
+    for (size_t i=0; i<positions_buf.len/4; i+=3) {
         printf("%f %f %f\n", positions[i], positions[i+1], positions[i+2]); 
     }
+    printf("\n");
+
+    struct buffer index_buf = load_file("indices.bin", &buf);
+    uint16_t* indices = (unsigned short*)index_buf.data;
+    printf("indices:\n");
+    for (size_t i=0; i<index_buf.len / sizeof(uint16_t); i++) {
+        printf("%d\n", indices[i]);
+    }
+
 }
 
 static const char* vertex_shader_text =
