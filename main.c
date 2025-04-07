@@ -131,12 +131,13 @@ static const char* vertex_shader_text =
 "#version 460\n"
 "layout(location = 0) in vec3 vNorm;\n"
 "layout(location = 1) in vec3 vPos;\n"
-"layout(location = 0) uniform mat4 txfm;\n"
+"layout(location = 0) uniform mat4 world_txfm;\n"
+"layout(location = 1) uniform mat4 viewport_txfm;\n"
 "out vec3 norm;\n"
 "void main()\n"
 "{\n"
-"    gl_Position = txfm * vec4(vPos, 1.0);\n"
-"    norm = vNorm;\n"
+"    gl_Position = viewport_txfm * world_txfm * vec4(vPos, 1.0);\n"
+"    norm = mat3(world_txfm) * vNorm;\n"
 "}\n";
 
 static const char* fragment_shader_text =
@@ -145,7 +146,11 @@ static const char* fragment_shader_text =
 "out vec4 fragment;\n"
 "void main()\n"
 "{\n"
-"    fragment = vec4(abs(norm), 1.0);\n"
+"    vec3 sun_dir = normalize(vec3(0.0, -1.0, -1.0));\n"
+"    float diffuse = max(dot(norm, -sun_dir), 0.0);\n"
+"    float ambient = 0.2;\n"
+"    float light = ambient + diffuse;\n"
+"    fragment = vec4(light * vec3(1.0, 1.0, 1.0), 1.0);\n"
 "}\n";
 
 struct vec4 {
@@ -356,18 +361,21 @@ int main(void)
         glUseProgram(program);
         glBindVertexArray(model.vao);
 
-        struct mat4x4 txfm = mat4x4_translate(0, 1, 0);
-        txfm = mat4x4_mul(mat4x4_rot_x(angle), txfm);
-        txfm = mat4x4_mul(mat4x4_translate(0,0,-5), txfm);
-        txfm = mat4x4_mul(perspective(0.1, 10), txfm);
-        glUniformMatrix4fv(0, 1, true, txfm.data);
+        struct mat4x4 world_txfm = mat4x4_translate(0, 1, 0);
+        world_txfm = mat4x4_mul(mat4x4_rot_x(angle), world_txfm);
+        world_txfm = mat4x4_mul(mat4x4_translate(0,0,-5), world_txfm);
+        glUniformMatrix4fv(0, 1, true, world_txfm.data);
+
+	struct mat4x4 viewport_txfm = perspective(0.1, 10);
+
+	glUniformMatrix4fv(1, 1, true, viewport_txfm.data);
         glDrawElements(GL_TRIANGLES, model.num_indices, GL_UNSIGNED_SHORT, 0);
  
         glfwSwapBuffers(window);
         glfwPollEvents();
 
         // radians/sec
-        const float ROTATION_RATE = 1*M_PI;
+        const float ROTATION_RATE = 0.5*M_PI;
         angle += ROTATION_RATE * delta_s;
         angle = fmodf(angle, 2*M_PI);
 
