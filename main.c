@@ -53,7 +53,7 @@ struct model {
 };
 
 struct model load_model(void) {
-    size_t BUFSIZE = 4096;
+    size_t BUFSIZE = 32768;
     char buf_data[BUFSIZE];
     struct buffer buf = {buf_data, BUFSIZE};
 
