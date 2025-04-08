@@ -1,4 +1,5 @@
 import json
+import sys
 from enum import Enum, StrEnum
 
 class ComponentType(Enum):
@@ -43,8 +44,13 @@ def dump_accessor(
         assert(bytes_written == byte_length)
         print(f"wrote {bytes_written} bytes to {output_path}")
 
-def parse_dump_cube():
-    with open('cube.gltf', 'r') as f:
+def parse_dump_gltf():
+    if len(sys.argv) != 2:
+        print(f"usage: python {__file__} <GLTF_PATH>")
+        sys.exit()
+    gltf_path = sys.argv[1]
+
+    with open(gltf_path, 'r') as f:
         gltf = json.load(f)
 
     meshes = gltf['meshes']
@@ -81,4 +87,4 @@ def parse_dump_cube():
             BufferViewTarget.ELEMENT_ARRAY_BUFFER)
 
 if __name__ == '__main__':
-    parse_dump_cube()
+    parse_dump_gltf()
