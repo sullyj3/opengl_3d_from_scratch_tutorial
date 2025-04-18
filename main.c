@@ -34,11 +34,11 @@ struct buffer {
 };
 
 struct buffer alloc_buffer(size_t len) {
-    char* data = malloc(size);
+    char* data = malloc(len);
     return (struct buffer) {
         .data = data,
         .len = len,
-    }
+    };
 }
 
 struct buffer load_file(const char* path, struct buffer* buf) {
@@ -216,12 +216,12 @@ struct mat4x4 mat4x4_rot_x(float angle) {
 }
 
 struct mat4x4 mat4x4_translate(float x, float y, float z) {
-    return (struct mat4x4) {{
+    return (struct mat4x4) {
         1, 0, 0, x,
         0, 1, 0, y,
         0, 0, 1, z,
         0, 0, 0, 1,
-    }};
+    };
 }
 
 void mat4x4_print(struct mat4x4 mat) {
@@ -264,12 +264,12 @@ struct mat4x4 perspective(float n, float f) {
     float a = -f / (f-n);
     float b = -f*n / (f-n);
 
-    return (struct mat4x4) {{
+    return (struct mat4x4) {
         1, 0,  0, 0,
         0, 1,  0, 0,
         0, 0,  a, b,
         0, 0, -1, 0,
-    }};
+    };
 }
 
 static void error_callback(int error, const char* description)
@@ -374,9 +374,9 @@ int main(void)
         world_txfm = mat4x4_mul(mat4x4_translate(0,0,-5), world_txfm);
         glUniformMatrix4fv(0, 1, true, world_txfm.data);
 
-	struct mat4x4 viewport_txfm = perspective(0.1, 10);
+        struct mat4x4 viewport_txfm = perspective(0.1, 10);
 
-	glUniformMatrix4fv(1, 1, true, viewport_txfm.data);
+        glUniformMatrix4fv(1, 1, true, viewport_txfm.data);
         glDrawElements(GL_TRIANGLES, model.num_indices, GL_UNSIGNED_SHORT, 0);
  
         glfwSwapBuffers(window);
