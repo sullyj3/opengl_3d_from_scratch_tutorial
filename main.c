@@ -33,11 +33,19 @@ struct buffer {
     size_t len;
 };
 
+struct buffer alloc_buffer(size_t len) {
+    char* data = malloc(size);
+    return (struct buffer) {
+        .data = data,
+        .len = len,
+    }
+}
+
 struct buffer load_file(const char* path, struct buffer* buf) {
     FILE* f = fopen(path, "rb");
     assert(f);
     ssize_t read_len = fread(buf->data, 1, buf->len, f);
-    assert(read_len >= 0);
+    assert(read_len > 0);
     fclose(f);
 
     struct buffer ret = {buf->data, read_len};
@@ -52,33 +60,32 @@ struct model {
     size_t num_indices;
 };
 
-struct model load_model(void) {
-    size_t BUFSIZE = 32768;
-    char buf_data[BUFSIZE];
-    struct buffer buf = {buf_data, BUFSIZE};
+struct model load_model(struct buffer buf) {
 
     struct buffer positions_buf = load_file("positions.bin", &buf);
     float* positions = (float*)positions_buf.data;
-    printf("positions:\n");
-    for (size_t i=0; i<positions_buf.len/sizeof(float); i+=3) {
-        printf("%f %f %f\n", positions[i], positions[i+1], positions[i+2]); 
-    }
-    printf("\n");
 
     struct buffer normals_buf = load_file("normals.bin", &buf);
     float* normals = (float*)normals_buf.data;
-    printf("normals:\n");
-    for (size_t i=0; i<normals_buf.len/sizeof(float); i+=3) {
-        printf("%f %f %f\n", normals[i], normals[i+1], normals[i+2]); 
-    }
-    printf("\n");
+
 
     struct buffer index_buf = load_file("indices.bin", &buf);
     uint16_t* indices = (unsigned short*)index_buf.data;
-    printf("indices:\n");
-    for (size_t i=0; i<index_buf.len / sizeof(uint16_t); i++) {
-        printf("%d\n", indices[i]);
-    }
+
+    // printf("positions:\n");
+    // for (size_t i=0; i<positions_buf.len/sizeof(float); i+=3) {
+    //     printf("%f %f %f\n", positions[i], positions[i+1], positions[i+2]); 
+    // }
+    // printf("\n");
+    // printf("normals:\n");
+    // for (size_t i=0; i<normals_buf.len/sizeof(float); i+=3) {
+    //     printf("%f %f %f\n", normals[i], normals[i+1], normals[i+2]); 
+    // }
+    // printf("\n");
+    // printf("indices:\n");
+    // for (size_t i=0; i<index_buf.len / sizeof(uint16_t); i++) {
+    //     printf("%d\n", indices[i]);
+    // }
 
     // Create Vertex Array Object (VAO)
     GLuint vertex_array;
@@ -322,7 +329,8 @@ int main(void)
     // enable vsync
     glfwSwapInterval(1);
  
-    const struct model model = load_model();
+    struct buffer buf = alloc_buffer(1e7);
+    const struct model model = load_model(buf);
  
     const GLuint vertex_shader = compile_shader(GL_VERTEX_SHADER, vertex_shader_text);
     const GLuint fragment_shader = compile_shader(GL_FRAGMENT_SHADER, fragment_shader_text);
