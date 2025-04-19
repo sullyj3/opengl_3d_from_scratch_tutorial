@@ -165,7 +165,7 @@ fn errorCallback(code: c_int, desc: [*c]const u8) callconv(.C) void {
     std.debug.print("GLFW error {}: {s}\n", .{ code, std.mem.span(desc) });
 }
 
-pub fn main() !void {
+fn opengl_3d_example() !void {
     _ = c.glfwSetErrorCallback(errorCallback);
     if (c.glfwInit() == 0) return error.GlfwInitFailed;
     defer c.glfwTerminate();
@@ -226,4 +226,8 @@ pub fn main() !void {
 
         angle = std.math.mod(f32, angle + 0.5 * std.math.pi * dt, 2 * std.math.pi) catch unreachable;
     }
+}
+
+pub fn main() !void {
+    try opengl_3d_example();
 }
