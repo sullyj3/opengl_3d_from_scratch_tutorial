@@ -87,8 +87,6 @@ fn compileShader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
 
 const Model = struct { vao: c.GLuint, num_indices: usize };
 
-const MAX_BIN_FILE_SIZE: usize = 1e6;
-
 fn loadModel(allocator: Allocator) !Model {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
@@ -99,37 +97,37 @@ fn loadModel(allocator: Allocator) !Model {
     c.glBindVertexArray(vao);
 
     var buffer_handles: [3]c.GLuint = undefined;
-    c.glGenBuffers(3, &buffer_handles);
+    c.glCreateBuffers(3, &buffer_handles);
     const positions_vbo, const normals_vbo, const indices_ebo = buffer_handles;
 
     const ATTR_POS_IDX = 0;
     const ATTR_NORM_IDX = 1;
+    const MAX_BIN_FILE_SIZE: usize = 1e6;
 
-    // Positions
+    // upload vertex data
     const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", MAX_BIN_FILE_SIZE);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
+    c.glNamedBufferData(positions_vbo, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
     _ = arena.reset(.retain_capacity);
+    const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", MAX_BIN_FILE_SIZE);
+    c.glNamedBufferData(normals_vbo, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
+    _ = arena.reset(.retain_capacity);
+    const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", MAX_BIN_FILE_SIZE);
+    const num_indices = indices.len / @sizeOf(u16);
+    c.glNamedBufferData(indices_ebo, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
 
+    // Specify vertex attribute layout
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
     c.glVertexAttribPointer(ATTR_POS_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
     c.glEnableVertexAttribArray(ATTR_POS_IDX);
 
-    // Normals
-    const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", MAX_BIN_FILE_SIZE);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, normals_vbo);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
-    _ = arena.reset(.retain_capacity);
-
     c.glVertexAttribPointer(ATTR_NORM_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
     c.glEnableVertexAttribArray(ATTR_NORM_IDX);
 
-    // Indices
-    const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", MAX_BIN_FILE_SIZE);
     c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, indices_ebo);
-    c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
 
     c.glBindVertexArray(0);
-    return Model{ .vao = vao, .num_indices = indices.len / @sizeOf(u16) };
+    return Model{ .vao = vao, .num_indices = num_indices };
 }
 
 // ---------- Shader sources ----------
