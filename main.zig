@@ -68,7 +68,6 @@ const Mat4 = struct {
     }
 };
 
-// ---------- GL helpers ----------
 fn compileShader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
     const sh = c.glCreateShader(kind);
     const c_source: [*c]const u8 = source.ptr;
