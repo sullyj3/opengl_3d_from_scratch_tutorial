@@ -98,12 +98,13 @@ fn loadModel(alloc: Allocator) !Model {
     c.glGenVertexArrays(1, &vao);
     c.glBindVertexArray(vao);
 
-    // Positions
-    var vbo1: c.GLuint = 0;
-    c.glGenBuffers(1, &vbo1);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo1);
+    var buffer_handles: [3]c.GLuint = undefined;
+    c.glGenBuffers(3, &buffer_handles);
+    const positions_vbo, const normals_vbo, const indices_ebo = buffer_handles;
 
+    // Positions
     const positions = try std.fs.cwd().readFileAlloc(arena_alloc, "positions.bin", MAX_BIN_FILE_SIZE);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
     c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
     _ = arena.reset(.retain_capacity);
 
@@ -111,11 +112,8 @@ fn loadModel(alloc: Allocator) !Model {
     c.glVertexAttribPointer(1, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
     // Normals
-    var vbo2: c.GLuint = 0;
-    c.glGenBuffers(1, &vbo2);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo2);
-
     const normals = try std.fs.cwd().readFileAlloc(arena_alloc, "normals.bin", MAX_BIN_FILE_SIZE);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, normals_vbo);
     c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
     _ = arena.reset(.retain_capacity);
 
@@ -123,10 +121,8 @@ fn loadModel(alloc: Allocator) !Model {
     c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
     // Indices
-    var ebo: c.GLuint = 0; // placeholder
-    c.glGenBuffers(1, &ebo);
-    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, ebo);
     const indices = try std.fs.cwd().readFileAlloc(arena_alloc, "indices.bin", MAX_BIN_FILE_SIZE);
+    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, indices_ebo);
     c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
 
     c.glBindVertexArray(0);
