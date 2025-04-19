@@ -7,36 +7,7 @@ const c = @cImport({
     @cInclude("GL/gl.h"); // or your OpenGL loader header
 });
 
-const Alloc = std.heap.c_allocator;
-
-// ---------- Simple bump‐arena ----------
-const BufferArena = struct {
-    mem: []u8,
-    pos: usize = 0,
-
-    pub fn init(cap: usize) !BufferArena {
-        return .{ .mem = try Alloc.alloc(u8, cap) };
-    }
-
-    pub fn carve(self: *BufferArena, n: usize) []u8 {
-        const slice = self.mem[self.pos .. self.pos + n];
-        self.pos += n;
-        return slice;
-    }
-};
-
-fn loadFile(arena: *BufferArena, path: [:0]const u8) ![]u8 {
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-
-    const len = try file.getEndPos();
-    const buf = arena.carve(len);
-    const got = try file.readAll(buf);
-    if (got == 0) return error.UnexpectedEof;
-
-    std.debug.print("Read {d} bytes from {s}\n", .{ got, path });
-    return buf;
-}
+const Allocator = std.mem.Allocator;
 
 // ---------- Linear algebra ----------
 const Vec4 = struct {
@@ -116,32 +87,46 @@ fn compileShader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
 
 const Model = struct { vao: c.GLuint, num_indices: usize };
 
-fn loadModel(arena: *BufferArena) !Model {
-    const positions = try loadFile(arena, "positions.bin");
-    const normals = try loadFile(arena, "normals.bin");
-    const indices = try loadFile(arena, "indices.bin");
+const MAX_BIN_FILE_SIZE: usize = 1e6;
+
+fn loadModel(alloc: Allocator) !Model {
+    var arena = std.heap.ArenaAllocator.init(alloc);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
 
     var vao: c.GLuint = 0;
     c.glGenVertexArrays(1, &vao);
     c.glBindVertexArray(vao);
 
+    // Positions
     var vbo1: c.GLuint = 0;
     c.glGenBuffers(1, &vbo1);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo1);
+
+    const positions = try std.fs.cwd().readFileAlloc(arena_alloc, "positions.bin", MAX_BIN_FILE_SIZE);
     c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
+    _ = arena.reset(.retain_capacity);
+
     c.glEnableVertexAttribArray(1);
     c.glVertexAttribPointer(1, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
+    // Normals
     var vbo2: c.GLuint = 0;
     c.glGenBuffers(1, &vbo2);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo2);
+
+    const normals = try std.fs.cwd().readFileAlloc(arena_alloc, "normals.bin", MAX_BIN_FILE_SIZE);
     c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
+    _ = arena.reset(.retain_capacity);
+
     c.glEnableVertexAttribArray(0);
     c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
+    // Indices
     var ebo: c.GLuint = 0; // placeholder
     c.glGenBuffers(1, &ebo);
     c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, ebo);
+    const indices = try std.fs.cwd().readFileAlloc(arena_alloc, "indices.bin", MAX_BIN_FILE_SIZE);
     c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
 
     c.glBindVertexArray(0);
@@ -195,8 +180,7 @@ pub fn main() !void {
     c.glfwMakeContextCurrent(window);
     c.glfwSwapInterval(1);
 
-    var arena = try BufferArena.init(10_000_000);
-    const model = try loadModel(&arena);
+    const model = try loadModel(std.heap.page_allocator);
 
     const vs = try compileShader(c.GL_VERTEX_SHADER, vs_source);
     const fs = try compileShader(c.GL_FRAGMENT_SHADER, fs_source);
@@ -211,9 +195,10 @@ pub fn main() !void {
     var angle: f32 = 0;
 
     while (c.glfwWindowShouldClose(window) == 0) {
+        const NS_IN_S = 1e9;
         const now_ns = std.time.nanoTimestamp();
         const dt_ns = now_ns - last_ns;
-        const dt = @as(f32, @floatFromInt(dt_ns)) / 1e9;
+        const dt = @as(f32, @floatFromInt(dt_ns)) / NS_IN_S;
         last_ns = now_ns;
 
         var w: c_int = 0;
