@@ -1,0 +1,244 @@
+const std = @import("std");
+
+// ----- C import: GLFW + OpenGL prototypes -----
+const c = @cImport({
+    @cDefine("GL_GLEXT_PROTOTYPES", "1");
+    @cInclude("GLFW/glfw3.h");
+    @cInclude("GL/gl.h"); // or your OpenGL loader header
+});
+
+const Alloc = std.heap.c_allocator;
+
+// ---------- Simple bump‐arena ----------
+const BufferArena = struct {
+    mem: []u8,
+    pos: usize = 0,
+
+    pub fn init(cap: usize) !BufferArena {
+        return .{ .mem = try Alloc.alloc(u8, cap) };
+    }
+
+    pub fn carve(self: *BufferArena, n: usize) []u8 {
+        const slice = self.mem[self.pos .. self.pos + n];
+        self.pos += n;
+        return slice;
+    }
+};
+
+fn loadFile(arena: *BufferArena, path: [:0]const u8) ![]u8 {
+    const file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+
+    const len = try file.getEndPos();
+    const buf = arena.carve(len);
+    const got = try file.readAll(buf);
+    if (got == 0) return error.UnexpectedEof;
+
+    std.debug.print("Read {d} bytes from {s}\n", .{ got, path });
+    return buf;
+}
+
+// ---------- Linear algebra ----------
+const Vec4 = struct {
+    data: [4]f32,
+    fn dot(a: Vec4, b: Vec4) f32 {
+        var acc: f32 = 0;
+        inline for (0..4) |i| acc += a.data[i] * b.data[i];
+        return acc;
+    }
+};
+
+const Mat4 = struct {
+    data: [16]f32,
+    fn row(self: Mat4, r: usize) Vec4 {
+        return .{ .data = self.data[r * 4 ..][0..4].* };
+    }
+    fn col(self: Mat4, colIdx: usize) Vec4 {
+        var v: Vec4 = undefined;
+        inline for (0..4) |i| v.data[i] = self.data[i * 4 + colIdx];
+        return v;
+    }
+    fn mul(a: Mat4, b: Mat4) Mat4 {
+        var out: Mat4 = undefined;
+        inline for (0..16) |i| {
+            const rowIdx = i / 4;
+            const colIdx = i % 4;
+            out.data[i] = Vec4.dot(a.row(rowIdx), b.col(colIdx));
+        }
+        return out;
+    }
+    fn perspective(n: f32, f: f32) Mat4 {
+        const a = -f / (f - n);
+        const b = -f * n / (f - n);
+        return .{ .data = .{
+            1, 0, 0,  0,
+            0, 1, 0,  0,
+            0, 0, a,  b,
+            0, 0, -1, 0,
+        } };
+    }
+    fn rotX(theta: f32) Mat4 {
+        const cs = std.math.cos(theta);
+        const sn = std.math.sin(theta);
+        return .{ .data = .{
+            1, 0,  0,   0,
+            0, cs, -sn, 0,
+            0, sn, cs,  0,
+            0, 0,  0,   1,
+        } };
+    }
+    fn translate(x: f32, y: f32, z: f32) Mat4 {
+        return .{ .data = .{
+            1, 0, 0, x,
+            0, 1, 0, y,
+            0, 0, 1, z,
+            0, 0, 0, 1,
+        } };
+    }
+};
+
+// ---------- GL helpers ----------
+fn compileShader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
+    const sh = c.glCreateShader(kind);
+    const c_source: [*c]const u8 = source.ptr;
+    const source_array = [_][*c]const u8{c_source};
+    c.glShaderSource(sh, 1, &source_array, null);
+    c.glCompileShader(sh);
+
+    var status: c.GLint = 0;
+    c.glGetShaderiv(sh, c.GL_COMPILE_STATUS, &status);
+    if (status == 0) {
+        std.debug.print("Shader compilation failed.\n", .{});
+        return error.ShaderCompileFailed;
+    }
+    return sh;
+}
+
+const Model = struct { vao: c.GLuint, num_indices: usize };
+
+fn loadModel(arena: *BufferArena) !Model {
+    const positions = try loadFile(arena, "positions.bin");
+    const normals = try loadFile(arena, "normals.bin");
+    const indices = try loadFile(arena, "indices.bin");
+
+    var vao: c.GLuint = 0;
+    c.glGenVertexArrays(1, &vao);
+    c.glBindVertexArray(vao);
+
+    var vbo1: c.GLuint = 0;
+    c.glGenBuffers(1, &vbo1);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo1);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
+    c.glEnableVertexAttribArray(1);
+    c.glVertexAttribPointer(1, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+
+    var vbo2: c.GLuint = 0;
+    c.glGenBuffers(1, &vbo2);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo2);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
+    c.glEnableVertexAttribArray(0);
+    c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+
+    var ebo: c.GLuint = 0; // placeholder
+    c.glGenBuffers(1, &ebo);
+    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, ebo);
+    c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
+
+    c.glBindVertexArray(0);
+    return Model{ .vao = vao, .num_indices = indices.len / @sizeOf(u16) };
+}
+
+// ---------- Shader sources ----------
+const vs_source =
+    \\#version 460
+    \\layout(location = 0) in vec3 vNorm;
+    \\layout(location = 1) in vec3 vPos;
+    \\layout(location = 0) uniform mat4 world_txfm;
+    \\layout(location = 1) uniform mat4 viewport_txfm;
+    \\out vec3 norm;
+    \\void main()
+    \\{
+    \\    gl_Position = viewport_txfm * world_txfm * vec4(vPos, 1.0);
+    \\    norm = mat3(world_txfm) * vNorm;
+    \\}
+;
+
+const fs_source =
+    \\#version 460
+    \\in vec3 norm;
+    \\out vec4 fragment;
+    \\void main()
+    \\{
+    \\    vec3 sun_dir = normalize(vec3(0.0, -1.0, -1.0));
+    \\    float diffuse = max(dot(norm, -sun_dir), 0.0);
+    \\    float ambient = 0.2;
+    \\    fragment = vec4((ambient + diffuse) * vec3(1.0), 1.0);
+    \\}
+;
+
+fn errorCallback(code: c_int, desc: [*c]const u8) callconv(.C) void {
+    std.debug.print("GLFW error {}: {s}\n", .{ code, std.mem.span(desc) });
+}
+
+pub fn main() !void {
+    _ = c.glfwSetErrorCallback(errorCallback);
+    if (c.glfwInit() == 0) return error.GlfwInitFailed;
+    defer c.glfwTerminate();
+
+    c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MAJOR, 4);
+    c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MINOR, 6);
+    c.glfwWindowHint(c.GLFW_OPENGL_PROFILE, c.GLFW_OPENGL_CORE_PROFILE);
+
+    const window = c.glfwCreateWindow(500, 500, "OpenGL Zig", null, null) orelse return error.WindowCreationFailed;
+    defer c.glfwDestroyWindow(window);
+
+    c.glfwMakeContextCurrent(window);
+    c.glfwSwapInterval(1);
+
+    var arena = try BufferArena.init(10_000_000);
+    const model = try loadModel(&arena);
+
+    const vs = try compileShader(c.GL_VERTEX_SHADER, vs_source);
+    const fs = try compileShader(c.GL_FRAGMENT_SHADER, fs_source);
+    const prog = c.glCreateProgram();
+    c.glAttachShader(prog, vs);
+    c.glAttachShader(prog, fs);
+    c.glLinkProgram(prog);
+
+    c.glEnable(c.GL_DEPTH_TEST);
+
+    var last_ns = std.time.nanoTimestamp();
+    var angle: f32 = 0;
+
+    while (c.glfwWindowShouldClose(window) == 0) {
+        const now_ns = std.time.nanoTimestamp();
+        const dt_ns = now_ns - last_ns;
+        const dt = @as(f32, @floatFromInt(dt_ns)) / 1e9;
+        last_ns = now_ns;
+
+        var w: c_int = 0;
+        var h: c_int = 0;
+        c.glfwGetFramebufferSize(window, &w, &h);
+        c.glViewport(0, 0, w, h);
+        c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT);
+
+        c.glUseProgram(prog);
+        c.glBindVertexArray(model.vao);
+
+        var world = Mat4.translate(0, 1, 0);
+        world = Mat4.mul(Mat4.rotX(angle), world);
+        world = Mat4.mul(Mat4.translate(0, 0, -5), world);
+        var proj = Mat4.perspective(0.1, 10);
+
+        c.glUniformMatrix4fv(0, 1, c.GL_TRUE, &world.data);
+        c.glUniformMatrix4fv(1, 1, c.GL_TRUE, &proj.data);
+
+        const num_indices: i32 = @intCast(model.num_indices);
+        c.glDrawElements(c.GL_TRIANGLES, num_indices, c.GL_UNSIGNED_SHORT, null);
+
+        c.glfwSwapBuffers(window);
+        c.glfwPollEvents();
+
+        angle = std.math.mod(f32, angle + 0.5 * std.math.pi * dt, 2 * std.math.pi) catch unreachable;
+    }
+}
