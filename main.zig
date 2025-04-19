@@ -89,10 +89,10 @@ const Model = struct { vao: c.GLuint, num_indices: usize };
 
 const MAX_BIN_FILE_SIZE: usize = 1e6;
 
-fn loadModel(alloc: Allocator) !Model {
-    var arena = std.heap.ArenaAllocator.init(alloc);
+fn loadModel(allocator: Allocator) !Model {
+    var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    const arena_alloc = arena.allocator();
+    const alloc = arena.allocator();
 
     var vao: c.GLuint = 0;
     c.glGenVertexArrays(1, &vao);
@@ -103,7 +103,7 @@ fn loadModel(alloc: Allocator) !Model {
     const positions_vbo, const normals_vbo, const indices_ebo = buffer_handles;
 
     // Positions
-    const positions = try std.fs.cwd().readFileAlloc(arena_alloc, "positions.bin", MAX_BIN_FILE_SIZE);
+    const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", MAX_BIN_FILE_SIZE);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
     c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
     _ = arena.reset(.retain_capacity);
@@ -112,7 +112,7 @@ fn loadModel(alloc: Allocator) !Model {
     c.glVertexAttribPointer(1, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
     // Normals
-    const normals = try std.fs.cwd().readFileAlloc(arena_alloc, "normals.bin", MAX_BIN_FILE_SIZE);
+    const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", MAX_BIN_FILE_SIZE);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, normals_vbo);
     c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
     _ = arena.reset(.retain_capacity);
@@ -121,7 +121,7 @@ fn loadModel(alloc: Allocator) !Model {
     c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
     // Indices
-    const indices = try std.fs.cwd().readFileAlloc(arena_alloc, "indices.bin", MAX_BIN_FILE_SIZE);
+    const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", MAX_BIN_FILE_SIZE);
     c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, indices_ebo);
     c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
 
