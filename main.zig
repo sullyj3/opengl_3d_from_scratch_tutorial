@@ -102,14 +102,17 @@ fn loadModel(allocator: Allocator) !Model {
     c.glGenBuffers(3, &buffer_handles);
     const positions_vbo, const normals_vbo, const indices_ebo = buffer_handles;
 
+    const ATTR_POS_IDX = 0;
+    const ATTR_NORM_IDX = 1;
+
     // Positions
     const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", MAX_BIN_FILE_SIZE);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
     c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
     _ = arena.reset(.retain_capacity);
 
-    c.glEnableVertexAttribArray(1);
-    c.glVertexAttribPointer(1, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+    c.glVertexAttribPointer(ATTR_POS_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+    c.glEnableVertexAttribArray(ATTR_POS_IDX);
 
     // Normals
     const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", MAX_BIN_FILE_SIZE);
@@ -117,8 +120,8 @@ fn loadModel(allocator: Allocator) !Model {
     c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
     _ = arena.reset(.retain_capacity);
 
-    c.glEnableVertexAttribArray(0);
-    c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+    c.glVertexAttribPointer(ATTR_NORM_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+    c.glEnableVertexAttribArray(ATTR_NORM_IDX);
 
     // Indices
     const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", MAX_BIN_FILE_SIZE);
@@ -132,8 +135,8 @@ fn loadModel(allocator: Allocator) !Model {
 // ---------- Shader sources ----------
 const vs_source =
     \\#version 460
-    \\layout(location = 0) in vec3 vNorm;
-    \\layout(location = 1) in vec3 vPos;
+    \\layout(location = 0) in vec3 vPos;
+    \\layout(location = 1) in vec3 vNorm;
     \\layout(location = 0) uniform mat4 world_txfm;
     \\layout(location = 1) uniform mat4 viewport_txfm;
     \\out vec3 norm;
