@@ -118,7 +118,6 @@ const Model = struct {
     positions_vbo: c.GLuint,
     normals_vbo: c.GLuint,
     indices_ebo: c.GLuint,
-
     num_vertices: usize,
     num_indices: usize,
 
@@ -171,9 +170,15 @@ const Model = struct {
             .positions_vbo = positions_vbo,
             .normals_vbo = normals_vbo,
             .indices_ebo = indices_ebo,
-            .num_indices = num_indices,
             .num_vertices = num_positions,
+            .num_indices = num_indices,
         };
+    }
+
+    fn deinit(self: Model) void {
+        const buffer_objects = [_]c.GLuint{ self.positions_vbo, self.normals_vbo, self.indices_ebo };
+        c.glDeleteBuffers(3, &buffer_objects);
+        c.glDeleteVertexArrays(1, &self.vao);
     }
 };
 
@@ -246,10 +251,15 @@ fn opengl_3d_example() !void {
     c.glfwSwapInterval(1);
 
     const model = try Model.load(std.heap.page_allocator);
+    defer model.deinit();
 
     const vs = try compile_shader(c.GL_VERTEX_SHADER, vs_source);
+    defer c.glDeleteShader(vs);
     const fs = try compile_shader(c.GL_FRAGMENT_SHADER, fs_source);
+    defer c.glDeleteShader(fs);
     const prog = c.glCreateProgram();
+    defer c.glDeleteProgram(prog);
+
     c.glAttachShader(prog, vs);
     c.glAttachShader(prog, fs);
     c.glLinkProgram(prog);
