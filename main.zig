@@ -181,6 +181,25 @@ fn errorCallback(code: c_int, desc: [*c]const u8) callconv(.C) void {
     std.debug.print("GLFW error {}: {s}\n", .{ code, std.mem.span(desc) });
 }
 
+fn key_callback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, actions: c_int, mods: c_int) callconv(.C) void {
+    _ = window;
+    _ = scancode;
+    _ = mods;
+
+    switch (actions) {
+        c.GLFW_RELEASE => {
+            std.debug.print("keycode {} released\n", .{key});
+        },
+        c.GLFW_PRESS => {
+            std.debug.print("keycode {} pressed\n", .{key});
+        },
+        c.GLFW_REPEAT => {
+            std.debug.print("keycode {} repeated\n", .{key});
+        },
+        else => unreachable,
+    }
+}
+
 fn opengl_3d_example() !void {
     _ = c.glfwSetErrorCallback(errorCallback);
     if (c.glfwInit() == 0) return error.GlfwInitFailed;
@@ -192,6 +211,8 @@ fn opengl_3d_example() !void {
 
     const window = c.glfwCreateWindow(500, 500, "OpenGL Zig", null, null) orelse return error.WindowCreationFailed;
     defer c.glfwDestroyWindow(window);
+
+    _ = c.glfwSetKeyCallback(window, key_callback);
 
     c.glfwMakeContextCurrent(window);
     c.glfwSwapInterval(1);
