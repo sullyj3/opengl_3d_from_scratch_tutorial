@@ -226,9 +226,9 @@ fn opengl_3d_example() !void {
         c.glUseProgram(prog);
         c.glBindVertexArray(model.vao);
 
-        var world = Mat4.translate(0, 1, 0);
-        world = Mat4.mul(Mat4.rotX(angle), world);
-        world = Mat4.mul(Mat4.translate(0, 0, -5), world);
+        var world = Mat4.translate(0, 0, 0);
+        world = Mat4.mul(Mat4.rotY(angle), world);
+        world = Mat4.mul(Mat4.translate(0, -1.25, -4), world);
         var proj = Mat4.perspective(0.1, 10);
 
         c.glUniformMatrix4fv(0, 1, c.GL_TRUE, &world.data);
