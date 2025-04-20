@@ -58,6 +58,26 @@ const Mat4 = struct {
             0, 0,  0,   1,
         } };
     }
+    fn rotY(theta: f32) Mat4 {
+        const cs = std.math.cos(theta);
+        const sn = std.math.sin(theta);
+        return .{ .data = .{
+            cs, 0, -sn, 0,
+            0,  1, 0,   0,
+            sn, 0, cs,  0,
+            0,  0, 0,   1,
+        } };
+    }
+    fn rotZ(theta: f32) Mat4 {
+        const cs = std.math.cos(theta);
+        const sn = std.math.sin(theta);
+        return .{ .data = .{
+            cs, -sn, 0, 0,
+            sn, cs,  0, 0,
+            0,  0,   1, 0,
+            0,  0,   0, 1,
+        } };
+    }
     fn translate(x: f32, y: f32, z: f32) Mat4 {
         return .{ .data = .{
             1, 0, 0, x,
