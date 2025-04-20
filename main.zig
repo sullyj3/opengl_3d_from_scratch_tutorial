@@ -113,50 +113,69 @@ fn compile_shader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
     return sh;
 }
 
-const Model = struct { vao: c.GLuint, num_indices: usize };
+const Model = struct {
+    vao: c.GLuint,
+    positions_vbo: c.GLuint,
+    normals_vbo: c.GLuint,
+    indices_ebo: c.GLuint,
 
-fn load_model(allocator: Allocator) !Model {
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-    const alloc = arena.allocator();
+    num_vertices: usize,
+    num_indices: usize,
 
-    var vao: c.GLuint = 0;
-    c.glGenVertexArrays(1, &vao);
-    c.glBindVertexArray(vao);
+    fn load(allocator: Allocator) !Model {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
 
-    var buffer_handles: [3]c.GLuint = undefined;
-    c.glCreateBuffers(3, &buffer_handles);
-    const positions_vbo, const normals_vbo, const indices_ebo = buffer_handles;
+        var vao: c.GLuint = 0;
+        c.glGenVertexArrays(1, &vao);
+        c.glBindVertexArray(vao);
 
-    const ATTR_POS_IDX = 0;
-    const ATTR_NORM_IDX = 1;
-    const MAX_BIN_FILE_SIZE: usize = 1_000_000;
+        var buffer_handles: [3]c.GLuint = undefined;
+        c.glCreateBuffers(3, &buffer_handles);
+        const positions_vbo, const normals_vbo, const indices_ebo = buffer_handles;
 
-    // upload vertex data
-    const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", MAX_BIN_FILE_SIZE);
-    c.glNamedBufferData(positions_vbo, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
-    _ = arena.reset(.retain_capacity);
-    const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", MAX_BIN_FILE_SIZE);
-    c.glNamedBufferData(normals_vbo, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
-    _ = arena.reset(.retain_capacity);
-    const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", MAX_BIN_FILE_SIZE);
-    const num_indices = indices.len / @sizeOf(u16);
-    c.glNamedBufferData(indices_ebo, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
+        const ATTR_POS_IDX = 0;
+        const ATTR_NORM_IDX = 1;
+        const MAX_BIN_FILE_SIZE: usize = 1_000_000;
 
-    // Specify vertex attribute layout
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
-    c.glVertexAttribPointer(ATTR_POS_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
-    c.glEnableVertexAttribArray(ATTR_POS_IDX);
+        // upload vertex data
+        const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", MAX_BIN_FILE_SIZE);
+        const num_positions = positions.len / (3 * @sizeOf(f32));
+        c.glNamedBufferData(positions_vbo, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
+        _ = arena.reset(.retain_capacity);
+        const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", MAX_BIN_FILE_SIZE);
+        const num_normals = normals.len / (3 * @sizeOf(f32));
+        c.glNamedBufferData(normals_vbo, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
+        _ = arena.reset(.retain_capacity);
+        const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", MAX_BIN_FILE_SIZE);
+        const num_indices = indices.len / @sizeOf(u16);
+        c.glNamedBufferData(indices_ebo, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
 
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, normals_vbo);
-    c.glVertexAttribPointer(ATTR_NORM_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
-    c.glEnableVertexAttribArray(ATTR_NORM_IDX);
+        // Specify vertex attribute layout
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
+        c.glVertexAttribPointer(ATTR_POS_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+        c.glEnableVertexAttribArray(ATTR_POS_IDX);
 
-    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, indices_ebo);
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, normals_vbo);
+        c.glVertexAttribPointer(ATTR_NORM_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+        c.glEnableVertexAttribArray(ATTR_NORM_IDX);
 
-    c.glBindVertexArray(0);
-    return Model{ .vao = vao, .num_indices = num_indices };
-}
+        c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, indices_ebo);
+
+        c.glBindVertexArray(0);
+
+        std.debug.assert(num_positions == num_normals);
+        return Model{
+            .vao = vao,
+            .positions_vbo = positions_vbo,
+            .normals_vbo = normals_vbo,
+            .indices_ebo = indices_ebo,
+            .num_indices = num_indices,
+            .num_vertices = num_positions,
+        };
+    }
+};
 
 // ---------- Shader sources ----------
 const vs_source =
@@ -226,7 +245,7 @@ fn opengl_3d_example() !void {
     c.glfwMakeContextCurrent(window);
     c.glfwSwapInterval(1);
 
-    const model = try load_model(std.heap.page_allocator);
+    const model = try Model.load(std.heap.page_allocator);
 
     const vs = try compile_shader(c.GL_VERTEX_SHADER, vs_source);
     const fs = try compile_shader(c.GL_FRAGMENT_SHADER, fs_source);
