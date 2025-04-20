@@ -19,16 +19,20 @@ const Vec4 = struct {
     }
 };
 
+// Row Major
 const Mat4 = struct {
     data: [16]f32,
+
     fn row(self: Mat4, r: usize) Vec4 {
         return .{ .data = self.data[r * 4 ..][0..4].* };
     }
+
     fn col(self: Mat4, colIdx: usize) Vec4 {
         var v: Vec4 = undefined;
         inline for (0..4) |i| v.data[i] = self.data[i * 4 + colIdx];
         return v;
     }
+
     fn mul(a: Mat4, b: Mat4) Mat4 {
         var out: Mat4 = undefined;
         inline for (0..16) |i| {
@@ -38,6 +42,7 @@ const Mat4 = struct {
         }
         return out;
     }
+
     fn perspective(n: f32, f: f32) Mat4 {
         const a = -f / (f - n);
         const b = -f * n / (f - n);
@@ -48,7 +53,8 @@ const Mat4 = struct {
             0, 0, -1, 0,
         } };
     }
-    fn rotX(theta: f32) Mat4 {
+
+    fn rot_x(theta: f32) Mat4 {
         const cs = std.math.cos(theta);
         const sn = std.math.sin(theta);
         return .{ .data = .{
@@ -58,7 +64,8 @@ const Mat4 = struct {
             0, 0,  0,   1,
         } };
     }
-    fn rotY(theta: f32) Mat4 {
+
+    fn rot_y(theta: f32) Mat4 {
         const cs = std.math.cos(theta);
         const sn = std.math.sin(theta);
         return .{ .data = .{
@@ -68,7 +75,8 @@ const Mat4 = struct {
             0,  0, 0,   1,
         } };
     }
-    fn rotZ(theta: f32) Mat4 {
+
+    fn rot_z(theta: f32) Mat4 {
         const cs = std.math.cos(theta);
         const sn = std.math.sin(theta);
         return .{ .data = .{
@@ -78,6 +86,7 @@ const Mat4 = struct {
             0,  0,   0, 1,
         } };
     }
+
     fn translate(x: f32, y: f32, z: f32) Mat4 {
         return .{ .data = .{
             1, 0, 0, x,
@@ -88,7 +97,7 @@ const Mat4 = struct {
     }
 };
 
-fn compileShader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
+fn compile_shader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
     const sh = c.glCreateShader(kind);
     const c_source: [*c]const u8 = source.ptr;
     const source_array = [_][*c]const u8{c_source};
@@ -106,7 +115,7 @@ fn compileShader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
 
 const Model = struct { vao: c.GLuint, num_indices: usize };
 
-fn loadModel(allocator: Allocator) !Model {
+fn load_model(allocator: Allocator) !Model {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
@@ -121,7 +130,7 @@ fn loadModel(allocator: Allocator) !Model {
 
     const ATTR_POS_IDX = 0;
     const ATTR_NORM_IDX = 1;
-    const MAX_BIN_FILE_SIZE: usize = 1e6;
+    const MAX_BIN_FILE_SIZE: usize = 1_000_000;
 
     // upload vertex data
     const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", MAX_BIN_FILE_SIZE);
@@ -177,7 +186,7 @@ const fs_source =
     \\}
 ;
 
-fn errorCallback(code: c_int, desc: [*c]const u8) callconv(.C) void {
+fn error_callback(code: c_int, desc: [*c]const u8) callconv(.C) void {
     std.debug.print("GLFW error {}: {s}\n", .{ code, std.mem.span(desc) });
 }
 
@@ -201,7 +210,7 @@ fn key_callback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, actions: c_
 }
 
 fn opengl_3d_example() !void {
-    _ = c.glfwSetErrorCallback(errorCallback);
+    _ = c.glfwSetErrorCallback(error_callback);
     if (c.glfwInit() == 0) return error.GlfwInitFailed;
     defer c.glfwTerminate();
 
@@ -217,10 +226,10 @@ fn opengl_3d_example() !void {
     c.glfwMakeContextCurrent(window);
     c.glfwSwapInterval(1);
 
-    const model = try loadModel(std.heap.page_allocator);
+    const model = try load_model(std.heap.page_allocator);
 
-    const vs = try compileShader(c.GL_VERTEX_SHADER, vs_source);
-    const fs = try compileShader(c.GL_FRAGMENT_SHADER, fs_source);
+    const vs = try compile_shader(c.GL_VERTEX_SHADER, vs_source);
+    const fs = try compile_shader(c.GL_FRAGMENT_SHADER, fs_source);
     const prog = c.glCreateProgram();
     c.glAttachShader(prog, vs);
     c.glAttachShader(prog, fs);
@@ -232,7 +241,7 @@ fn opengl_3d_example() !void {
     var angle: f32 = 0;
 
     while (c.glfwWindowShouldClose(window) == 0) {
-        const NS_IN_S = 1e9;
+        const NS_IN_S = 1_000_000_000;
         const now_ns = std.time.nanoTimestamp();
         const dt_ns = now_ns - last_ns;
         const dt = @as(f32, @floatFromInt(dt_ns)) / NS_IN_S;
@@ -248,7 +257,7 @@ fn opengl_3d_example() !void {
         c.glBindVertexArray(model.vao);
 
         var world = Mat4.translate(0, 0, 0);
-        world = Mat4.mul(Mat4.rotY(angle), world);
+        world = Mat4.mul(Mat4.rot_y(angle), world);
         world = Mat4.mul(Mat4.translate(0, -1.25, -4), world);
         var proj = Mat4.perspective(0.1, 10);
 
