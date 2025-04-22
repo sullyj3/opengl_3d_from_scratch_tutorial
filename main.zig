@@ -111,9 +111,11 @@ fn compile_shader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
         c.glGetShaderiv(sh, c.GL_INFO_LOG_LENGTH, &log_length);
 
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
         const alloc = gpa.allocator();
         std.debug.assert(log_length >= 0);
         const log_buf: []u8 = try alloc.alloc(u8, @intCast(log_length));
+        defer alloc.free(log_buf);
 
         var len: c.GLsizei = -1;
         c.glGetShaderInfoLog(sh, @intCast(log_buf.len), &len, log_buf.ptr);
@@ -133,8 +135,8 @@ const Model = struct {
     num_indices: usize,
 
     fn load() !Model {
-        const BUF_SZ = 50 * 1024;
-        var buf: [BUF_SZ]u8 = undefined;
+        const MAX_BIN_FILE_SIZE = 50 * 1024;
+        var buf: [MAX_BIN_FILE_SIZE]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(&buf);
         const alloc = fba.allocator();
 
@@ -148,18 +150,17 @@ const Model = struct {
 
         const ATTR_POS_IDX = 0;
         const ATTR_NORM_IDX = 1;
-        const MAX_BIN_FILE_SIZE: usize = 1_000_000;
 
         // upload vertex data
-        const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", MAX_BIN_FILE_SIZE);
+        const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", buf.len);
         const num_positions = positions.len / (3 * @sizeOf(f32));
         c.glNamedBufferData(positions_vbo, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
         fba.reset();
-        const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", MAX_BIN_FILE_SIZE);
+        const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", buf.len);
         const num_normals = normals.len / (3 * @sizeOf(f32));
         c.glNamedBufferData(normals_vbo, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
         fba.reset();
-        const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", MAX_BIN_FILE_SIZE);
+        const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", buf.len);
         const num_indices = indices.len / @sizeOf(u16);
         c.glNamedBufferData(indices_ebo, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
 
