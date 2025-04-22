@@ -132,10 +132,11 @@ const Model = struct {
     num_vertices: usize,
     num_indices: usize,
 
-    fn load(allocator: Allocator) !Model {
-        var arena = std.heap.ArenaAllocator.init(allocator);
-        defer arena.deinit();
-        const alloc = arena.allocator();
+    fn load() !Model {
+        const BUF_SZ = 50 * 1024;
+        var buf: [BUF_SZ]u8 = undefined;
+        var fba = std.heap.FixedBufferAllocator.init(&buf);
+        const alloc = fba.allocator();
 
         var vao: c.GLuint = 0;
         c.glGenVertexArrays(1, &vao);
@@ -153,11 +154,11 @@ const Model = struct {
         const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", MAX_BIN_FILE_SIZE);
         const num_positions = positions.len / (3 * @sizeOf(f32));
         c.glNamedBufferData(positions_vbo, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
-        _ = arena.reset(.retain_capacity);
+        fba.reset();
         const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", MAX_BIN_FILE_SIZE);
         const num_normals = normals.len / (3 * @sizeOf(f32));
         c.glNamedBufferData(normals_vbo, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
-        _ = arena.reset(.retain_capacity);
+        fba.reset();
         const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", MAX_BIN_FILE_SIZE);
         const num_indices = indices.len / @sizeOf(u16);
         c.glNamedBufferData(indices_ebo, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
@@ -261,7 +262,7 @@ fn opengl_3d_example() !void {
     c.glfwMakeContextCurrent(window);
     c.glfwSwapInterval(1);
 
-    const model = try Model.load(std.heap.page_allocator);
+    const model = try Model.load();
     defer model.deinit();
 
     const vs = try compile_shader(c.GL_VERTEX_SHADER, vs_source);
