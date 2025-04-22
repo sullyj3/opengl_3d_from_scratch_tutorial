@@ -227,7 +227,6 @@ fn error_callback(code: c_int, desc: [*c]const u8) callconv(.C) void {
 }
 
 fn key_callback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, actions: c_int, mods: c_int) callconv(.C) void {
-    _ = window;
     _ = scancode;
     _ = mods;
 
@@ -236,7 +235,14 @@ fn key_callback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, actions: c_
             std.debug.print("keycode {} released\n", .{key});
         },
         c.GLFW_PRESS => {
-            std.debug.print("keycode {} pressed\n", .{key});
+            switch (key) {
+                c.GLFW_KEY_Q => {
+                    c.glfwSetWindowShouldClose(window, c.GL_TRUE);
+                },
+                else => {
+                    std.debug.print("keycode {} pressed\n", .{key});
+                },
+            }
         },
         c.GLFW_REPEAT => {
             std.debug.print("keycode {} repeated\n", .{key});
