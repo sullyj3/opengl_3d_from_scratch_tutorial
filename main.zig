@@ -275,6 +275,29 @@ fn key_callback(
     }
 }
 
+const DeltaTimer = struct {
+    last_ns: i128,
+
+    fn init() DeltaTimer {
+        return .{ .last_ns = std.time.nanoTimestamp() };
+    }
+
+    // return time in nanoseconds since init or last lap call
+    fn lap_ns(self: *DeltaTimer) i128 {
+        const now_ns = std.time.nanoTimestamp();
+        const dt_ns = now_ns - self.last_ns;
+        self.last_ns = now_ns;
+        return dt_ns;
+    }
+
+    // return time in seconds since init or last lap call
+    fn lap_s(self: *DeltaTimer) f32 {
+        const NS_IN_S = 1_000_000_000;
+        const dt_ns = self.lap_ns();
+        return @as(f32, @floatFromInt(dt_ns)) / NS_IN_S;
+    }
+};
+
 fn opengl_3d_example() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -317,15 +340,11 @@ fn opengl_3d_example() !void {
 
     c.glEnable(c.GL_DEPTH_TEST);
 
-    var last_ns = std.time.nanoTimestamp();
+    var delta_timer = DeltaTimer.init();
     var angle: f32 = 0;
 
     while (c.glfwWindowShouldClose(window) == 0) {
-        const NS_IN_S = 1_000_000_000;
-        const now_ns = std.time.nanoTimestamp();
-        const dt_ns = now_ns - last_ns;
-        const dt = @as(f32, @floatFromInt(dt_ns)) / NS_IN_S;
-        last_ns = now_ns;
+        const dt: f32 = delta_timer.lap_s();
 
         var w: c_int = 0;
         var h: c_int = 0;
