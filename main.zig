@@ -107,7 +107,18 @@ fn compile_shader(kind: c.GLenum, source: [:0]const u8) !c.GLuint {
     var status: c.GLint = 0;
     c.glGetShaderiv(sh, c.GL_COMPILE_STATUS, &status);
     if (status == 0) {
-        std.debug.print("Shader compilation failed.\n", .{});
+        var log_length: c.GLsizei = -1;
+        c.glGetShaderiv(sh, c.GL_INFO_LOG_LENGTH, &log_length);
+
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        const alloc = gpa.allocator();
+        std.debug.assert(log_length >= 0);
+        const log_buf: []u8 = try alloc.alloc(u8, @intCast(log_length));
+
+        var len: c.GLsizei = -1;
+        c.glGetShaderInfoLog(sh, @intCast(log_buf.len), &len, log_buf.ptr);
+
+        std.debug.print("Shader compilation failed:\n\n    {s}\n", .{log_buf});
         return error.ShaderCompileFailed;
     }
     return sh;
