@@ -123,14 +123,7 @@ fn compile_shader(kind: c.GLenum, source: [:0]const u8, alloc: Allocator) !c.GLu
     return sh;
 }
 
-fn link_prog(
-    prog: c.GLuint,
-    vert_shader: c.GLuint,
-    frag_shader: c.GLuint,
-    alloc: Allocator,
-) !void {
-    c.glAttachShader(prog, vert_shader);
-    c.glAttachShader(prog, frag_shader);
+fn link_prog(prog: c.GLuint, alloc: Allocator) !void {
     c.glLinkProgram(prog);
     var status: c.GLint = 0;
     c.glGetProgramiv(prog, c.GL_LINK_STATUS, &status);
@@ -251,7 +244,13 @@ fn error_callback(code: c_int, desc: [*c]const u8) callconv(.C) void {
     std.debug.print("GLFW error {}: {s}\n", .{ code, std.mem.span(desc) });
 }
 
-fn key_callback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, actions: c_int, mods: c_int) callconv(.C) void {
+fn key_callback(
+    window: ?*c.GLFWwindow,
+    key: c_int,
+    scancode: c_int,
+    actions: c_int,
+    mods: c_int,
+) callconv(.C) void {
     _ = scancode;
     _ = mods;
 
@@ -300,14 +299,21 @@ fn opengl_3d_example() !void {
     const model = try Model.load();
     defer model.deinit();
 
-    const vs = try compile_shader(c.GL_VERTEX_SHADER, vs_source, alloc);
-    defer c.glDeleteShader(vs);
-    const fs = try compile_shader(c.GL_FRAGMENT_SHADER, fs_source, alloc);
-    defer c.glDeleteShader(fs);
     const prog: c.GLuint = c.glCreateProgram();
     defer c.glDeleteProgram(prog);
 
-    try link_prog(prog, vs, fs, alloc);
+    const vs = try compile_shader(c.GL_VERTEX_SHADER, vs_source, alloc);
+    const fs = try compile_shader(c.GL_FRAGMENT_SHADER, fs_source, alloc);
+    c.glAttachShader(prog, vs);
+    c.glAttachShader(prog, fs);
+    defer {
+        c.glDetachShader(prog, vs);
+        c.glDetachShader(prog, fs);
+        c.glDeleteShader(vs);
+        c.glDeleteShader(fs);
+    }
+
+    try link_prog(prog, alloc);
 
     c.glEnable(c.GL_DEPTH_TEST);
 
