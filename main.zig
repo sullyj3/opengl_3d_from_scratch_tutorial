@@ -143,6 +143,13 @@ fn link_prog(prog: c.GLuint, alloc: Allocator) !void {
     }
 }
 
+const Node = extern struct {
+    position: [3]f32,
+    rotation: [4]f32,
+    scale: [3]f32,
+    parent: u32,
+};
+
 const Model = struct {
     vao: c.GLuint,
     positions_vbo: c.GLuint,
@@ -185,14 +192,29 @@ const Model = struct {
         c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
         c.glVertexAttribPointer(ATTR_POS_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
         c.glEnableVertexAttribArray(ATTR_POS_IDX);
-
         c.glBindBuffer(c.GL_ARRAY_BUFFER, normals_vbo);
         c.glVertexAttribPointer(ATTR_NORM_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
         c.glEnableVertexAttribArray(ATTR_NORM_IDX);
-
         c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, indices_ebo);
-
         c.glBindVertexArray(0);
+
+        fba.reset();
+
+        const nodes_data = try std.fs.cwd().readFileAllocOptions(
+            alloc,
+            "nodes.bin",
+            buf.len,
+            null,
+            @alignOf(Node),
+            null,
+        );
+        if (nodes_data.len % @sizeOf(Node) != 0) return error.InvalidLength;
+        const nodes: []Node = std.mem.bytesAsSlice(Node, nodes_data);
+        std.debug.print("{} nodes loaded:\n", .{nodes.len});
+
+        for (nodes) |node| std.debug.print("{any}\n", .{node});
+
+        fba.reset();
 
         std.debug.assert(num_positions == num_normals);
         return Model{
