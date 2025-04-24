@@ -1,3 +1,4 @@
+import struct
 import json
 import sys
 from enum import Enum, StrEnum
@@ -85,6 +86,34 @@ def parse_dump_gltf():
             ComponentType.UNSIGNED_SHORT,
             AccessorType.SCALAR,
             BufferViewTarget.ELEMENT_ARRAY_BUFFER)
+
+    # dump nodes
+    ############
+    nodes = gltf['nodes']
+    # find node parents
+    parents = [0xffffffff for _ in nodes]
+    for i, node in enumerate(nodes):
+        for child in node.get('children', []):
+            parents[child] = i
+
+    # little endian, 10 floats (3 position, 4 rotation, 3 scale), 1 uint (parent id)
+    format_str = '<' + 'f'*(3 + 4 + 3) + 'I'
+    struct_size = struct.calcsize(format_str)
+    print(f'{struct_size=}')
+    buf = bytearray(struct_size * len(nodes))
+    for i, node in enumerate(nodes):
+        translation = node.get('translation', [0,0,0])
+        rotation = node.get('rotation', [0,0,0,1])
+        scale = node.get('scale', [1,1,1])
+        parent = parents[i]
+
+        node_data = translation + rotation + scale + [parent]
+        struct.pack_into(format_str, buf, i*struct_size, *node_data)
+
+    output_path = 'nodes.bin'
+    with open(output_path, 'wb') as f:
+        bytes_written = f.write(buf)
+        print(f"wrote {bytes_written} bytes to {output_path}")
 
 if __name__ == '__main__':
     parse_dump_gltf()

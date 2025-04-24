@@ -4,3 +4,4 @@ main.o
 positions.bin
 indices.bin
 normals.bin
+nodes.bin
