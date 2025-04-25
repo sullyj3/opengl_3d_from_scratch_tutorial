@@ -4,10 +4,13 @@ const std = @import("std");
 const c = @cImport({
     @cDefine("GL_GLEXT_PROTOTYPES", "1");
     @cInclude("GLFW/glfw3.h");
-    @cInclude("GL/gl.h"); // or your OpenGL loader header
+    @cInclude("GL/gl.h");
 });
 
 const Allocator = std.mem.Allocator;
+const math = std.math;
+const print = std.debug.print;
+const assert = std.debug.assert;
 
 // ---------- Linear algebra ----------
 const Vec4 = struct {
@@ -55,8 +58,8 @@ const Mat4 = struct {
     }
 
     fn rot_x(theta: f32) Mat4 {
-        const cs = std.math.cos(theta);
-        const sn = std.math.sin(theta);
+        const cs = math.cos(theta);
+        const sn = math.sin(theta);
         return .{ .data = .{
             1, 0,  0,   0,
             0, cs, -sn, 0,
@@ -66,8 +69,8 @@ const Mat4 = struct {
     }
 
     fn rot_y(theta: f32) Mat4 {
-        const cs = std.math.cos(theta);
-        const sn = std.math.sin(theta);
+        const cs = math.cos(theta);
+        const sn = math.sin(theta);
         return .{ .data = .{
             cs, 0, -sn, 0,
             0,  1, 0,   0,
@@ -77,8 +80,8 @@ const Mat4 = struct {
     }
 
     fn rot_z(theta: f32) Mat4 {
-        const cs = std.math.cos(theta);
-        const sn = std.math.sin(theta);
+        const cs = math.cos(theta);
+        const sn = math.sin(theta);
         return .{ .data = .{
             cs, -sn, 0, 0,
             sn, cs,  0, 0,
@@ -110,14 +113,14 @@ fn compile_shader(kind: c.GLenum, source: [:0]const u8, alloc: Allocator) !c.GLu
         var log_length: c.GLsizei = -1;
         c.glGetShaderiv(sh, c.GL_INFO_LOG_LENGTH, &log_length);
 
-        std.debug.assert(log_length >= 0);
+        assert(log_length >= 0);
         const log_buf: []u8 = try alloc.alloc(u8, @intCast(log_length));
         defer alloc.free(log_buf);
 
         var len: c.GLsizei = -1;
         c.glGetShaderInfoLog(sh, @intCast(log_buf.len), &len, log_buf.ptr);
 
-        std.debug.print("Shader compilation failed:\n\n    {s}\n", .{log_buf});
+        print("Shader compilation failed:\n\n    {s}\n", .{log_buf});
         return error.ShaderCompileFailed;
     }
     return sh;
@@ -131,14 +134,14 @@ fn link_prog(prog: c.GLuint, alloc: Allocator) !void {
         var log_length: c.GLsizei = -1;
         c.glGetProgramiv(prog, c.GL_INFO_LOG_LENGTH, &log_length);
 
-        std.debug.assert(log_length >= 0);
+        assert(log_length >= 0);
         const log_buf: []u8 = try alloc.alloc(u8, @intCast(log_length));
         defer alloc.free(log_buf);
 
         var len: c.GLsizei = -1;
         c.glGetProgramInfoLog(prog, @intCast(log_buf.len), &len, log_buf.ptr);
 
-        std.debug.print("error linking shader:\n\n    {s}\n", .{log_buf});
+        print("error linking shader:\n\n    {s}\n", .{log_buf});
         return error.GlProgLinkFailed;
     }
 }
@@ -210,13 +213,13 @@ const Model = struct {
         );
         if (nodes_data.len % @sizeOf(Node) != 0) return error.InvalidLength;
         const nodes: []Node = std.mem.bytesAsSlice(Node, nodes_data);
-        std.debug.print("{} nodes loaded:\n", .{nodes.len});
+        print("{} nodes loaded:\n", .{nodes.len});
 
-        for (nodes) |node| std.debug.print("{any}\n", .{node});
+        for (nodes) |node| print("{any}\n", .{node});
 
         fba.reset();
 
-        std.debug.assert(num_positions == num_normals);
+        assert(num_positions == num_normals);
         return Model{
             .vao = vao,
             .positions_vbo = positions_vbo,
@@ -263,7 +266,7 @@ const fs_source =
 ;
 
 fn error_callback(code: c_int, desc: [*c]const u8) callconv(.C) void {
-    std.debug.print("GLFW error {}: {s}\n", .{ code, std.mem.span(desc) });
+    print("GLFW error {}: {s}\n", .{ code, std.mem.span(desc) });
 }
 
 fn key_callback(
@@ -278,7 +281,7 @@ fn key_callback(
 
     switch (actions) {
         c.GLFW_RELEASE => {
-            std.debug.print("keycode {} released\n", .{key});
+            print("keycode {} released\n", .{key});
         },
         c.GLFW_PRESS => {
             switch (key) {
@@ -286,12 +289,12 @@ fn key_callback(
                     c.glfwSetWindowShouldClose(window, c.GL_TRUE);
                 },
                 else => {
-                    std.debug.print("keycode {} pressed\n", .{key});
+                    print("keycode {} pressed\n", .{key});
                 },
             }
         },
         c.GLFW_REPEAT => {
-            std.debug.print("keycode {} repeated\n", .{key});
+            print("keycode {} repeated\n", .{key});
         },
         else => unreachable,
     }
@@ -391,7 +394,7 @@ fn opengl_3d_example() !void {
         c.glfwSwapBuffers(window);
         c.glfwPollEvents();
 
-        angle = std.math.mod(f32, angle + 0.5 * std.math.pi * dt, 2 * std.math.pi) catch unreachable;
+        angle = math.mod(f32, angle + 0.5 * math.pi * dt, 2 * math.pi) catch unreachable;
     }
 }
 
