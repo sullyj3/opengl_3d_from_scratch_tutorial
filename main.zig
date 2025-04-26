@@ -368,10 +368,7 @@ fn opengl_3d_example() !void {
     var state = State.new();
 
     while (c.glfwWindowShouldClose(window) == 0) {
-        const dt: f32 = state.timer.lap_s();
-        state.angle =
-            math.mod(f32, state.angle + 0.5 * math.pi * dt, 2 * math.pi) catch unreachable;
-
+        state.simulate();
         draw(window, prog, model, state);
 
         c.glfwPollEvents();
@@ -387,6 +384,12 @@ const State = struct {
             .timer = DeltaTimer.init(),
             .angle = 0,
         };
+    }
+
+    fn simulate(self: *State) void {
+        const dt: f32 = self.timer.lap_s();
+        self.angle =
+            math.mod(f32, self.angle + 0.5 * math.pi * dt, 2 * math.pi) catch unreachable;
     }
 };
 
