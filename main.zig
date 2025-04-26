@@ -407,7 +407,7 @@ fn draw(window: *c.GLFWwindow, prog: c.GLuint, model: Model, state: State) void 
     var world = Mat4.translate(0, 0, 0);
     world = Mat4.mul(Mat4.rot_y(state.angle), world);
     world = Mat4.mul(Mat4.translate(0, -1.25, -4), world);
-    var proj = Mat4.perspective(0.1, 10);
+    const proj = comptime Mat4.perspective(0.1, 10);
 
     c.glUniformMatrix4fv(0, 1, c.GL_TRUE, &world.data);
     c.glUniformMatrix4fv(1, 1, c.GL_TRUE, &proj.data);
