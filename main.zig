@@ -181,13 +181,14 @@ const Model = struct {
 
     fn load_bin_into_buffer(alloc: Allocator, gl_buf: c.GLuint, path: []const u8) !usize {
         const data: []u8 = try std.fs.cwd().readFileAlloc(alloc, path, std.math.maxInt(usize));
+        defer alloc.free(data);
         c.glNamedBufferData(gl_buf, @intCast(data.len), data.ptr, c.GL_STATIC_DRAW);
         return data.len;
     }
 
     fn load(alloc: Allocator) !Model {
         var buf: [MAX_BIN_FILE_SIZE]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
+        var fba = std.heap.FixedBufferAllocator.init(buf[0..]);
         const fba_alloc = fba.allocator();
 
         var vao: c.GLuint = 0;
