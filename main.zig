@@ -336,7 +336,7 @@ fn opengl_3d_example() !void {
     c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MINOR, 6);
     c.glfwWindowHint(c.GLFW_OPENGL_PROFILE, c.GLFW_OPENGL_CORE_PROFILE);
 
-    const window = c.glfwCreateWindow(500, 500, "OpenGL Zig", null, null) orelse return error.WindowCreationFailed;
+    const window: *c.GLFWwindow = c.glfwCreateWindow(500, 500, "OpenGL Zig", null, null) orelse return error.WindowCreationFailed;
     defer c.glfwDestroyWindow(window);
 
     _ = c.glfwSetKeyCallback(window, key_callback);
