@@ -164,8 +164,28 @@ const Model = struct {
     // Owned
     nodes: []Node,
 
+    const MAX_BIN_FILE_SIZE = 50 * 1024;
+
+    fn load_nodes(alloc: Allocator) ![]Node {
+        const nodes_data = try std.fs.cwd().readFileAllocOptions(
+            alloc,
+            "nodes.bin",
+            MAX_BIN_FILE_SIZE,
+            null,
+            @alignOf(Node),
+            null,
+        );
+        if (nodes_data.len % @sizeOf(Node) != 0) return error.InvalidLength;
+        return std.mem.bytesAsSlice(Node, nodes_data);
+    }
+
+    fn load_bin_into_buffer(alloc: Allocator, gl_buf: c.GLuint, path: []const u8) !usize {
+        const data: []u8 = try std.fs.cwd().readFileAlloc(alloc, path, std.math.maxInt(usize));
+        c.glNamedBufferData(gl_buf, @intCast(data.len), data.ptr, c.GL_STATIC_DRAW);
+        return data.len;
+    }
+
     fn load(alloc: Allocator) !Model {
-        const MAX_BIN_FILE_SIZE = 50 * 1024;
         var buf: [MAX_BIN_FILE_SIZE]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(&buf);
         const fba_alloc = fba.allocator();
@@ -178,23 +198,23 @@ const Model = struct {
         c.glCreateBuffers(3, &buffer_handles);
         const positions_vbo, const normals_vbo, const indices_ebo = buffer_handles;
 
+        const positions_len = try Model.load_bin_into_buffer(fba_alloc, positions_vbo, "positions.bin");
+        fba.reset();
+        const normals_len = try Model.load_bin_into_buffer(fba_alloc, normals_vbo, "normals.bin");
+        fba.reset();
+        const indices_len = try Model.load_bin_into_buffer(fba_alloc, indices_ebo, "indices.bin");
+        fba.reset();
+
+        const num_positions = positions_len / (3 * @sizeOf(f32));
+        const num_normals = normals_len / (3 * @sizeOf(f32));
+        const num_indices = indices_len / @sizeOf(u16);
+
+        assert(num_positions == num_normals);
+
+        // Specify vertex attribute layout
         const ATTR_POS_IDX = 0;
         const ATTR_NORM_IDX = 1;
 
-        // upload vertex data
-        const positions = try std.fs.cwd().readFileAlloc(fba_alloc, "positions.bin", buf.len);
-        const num_positions = positions.len / (3 * @sizeOf(f32));
-        c.glNamedBufferData(positions_vbo, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
-        fba.reset();
-        const normals = try std.fs.cwd().readFileAlloc(fba_alloc, "normals.bin", buf.len);
-        const num_normals = normals.len / (3 * @sizeOf(f32));
-        c.glNamedBufferData(normals_vbo, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
-        fba.reset();
-        const indices = try std.fs.cwd().readFileAlloc(fba_alloc, "indices.bin", buf.len);
-        const num_indices = indices.len / @sizeOf(u16);
-        c.glNamedBufferData(indices_ebo, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
-
-        // Specify vertex attribute layout
         c.glBindBuffer(c.GL_ARRAY_BUFFER, positions_vbo);
         c.glVertexAttribPointer(ATTR_POS_IDX, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
         c.glEnableVertexAttribArray(ATTR_POS_IDX);
@@ -204,23 +224,8 @@ const Model = struct {
         c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, indices_ebo);
         c.glBindVertexArray(0);
 
-        fba.reset();
+        const nodes: []Node = try Model.load_nodes(alloc);
 
-        const nodes_data = try std.fs.cwd().readFileAllocOptions(
-            alloc,
-            "nodes.bin",
-            MAX_BIN_FILE_SIZE,
-            null,
-            @alignOf(Node),
-            null,
-        );
-        if (nodes_data.len % @sizeOf(Node) != 0) return error.InvalidLength;
-        const nodes: []Node = std.mem.bytesAsSlice(Node, nodes_data);
-        print("{} nodes loaded:\n", .{nodes.len});
-
-        // for (nodes) |node| print("{any}\n", .{node});
-
-        assert(num_positions == num_normals);
         return Model{
             .vao = vao,
             .positions_vbo = positions_vbo,
