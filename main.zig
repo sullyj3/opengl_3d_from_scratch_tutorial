@@ -365,37 +365,54 @@ fn opengl_3d_example() !void {
 
     c.glEnable(c.GL_DEPTH_TEST);
 
-    var delta_timer = DeltaTimer.init();
-    var angle: f32 = 0;
+    var state = State.new();
 
     while (c.glfwWindowShouldClose(window) == 0) {
-        const dt: f32 = delta_timer.lap_s();
+        const dt: f32 = state.timer.lap_s();
+        state.angle =
+            math.mod(f32, state.angle + 0.5 * math.pi * dt, 2 * math.pi) catch unreachable;
 
-        var w: c_int = 0;
-        var h: c_int = 0;
-        c.glfwGetFramebufferSize(window, &w, &h);
-        c.glViewport(0, 0, w, h);
-        c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT);
+        draw(window, prog, model, state);
 
-        c.glUseProgram(prog);
-        c.glBindVertexArray(model.vao);
-
-        var world = Mat4.translate(0, 0, 0);
-        world = Mat4.mul(Mat4.rot_y(angle), world);
-        world = Mat4.mul(Mat4.translate(0, -1.25, -4), world);
-        var proj = Mat4.perspective(0.1, 10);
-
-        c.glUniformMatrix4fv(0, 1, c.GL_TRUE, &world.data);
-        c.glUniformMatrix4fv(1, 1, c.GL_TRUE, &proj.data);
-
-        const num_indices: i32 = @intCast(model.num_indices);
-        c.glDrawElements(c.GL_TRIANGLES, num_indices, c.GL_UNSIGNED_SHORT, null);
-
-        c.glfwSwapBuffers(window);
         c.glfwPollEvents();
-
-        angle = math.mod(f32, angle + 0.5 * math.pi * dt, 2 * math.pi) catch unreachable;
     }
+}
+
+const State = struct {
+    timer: DeltaTimer,
+    angle: f32,
+
+    fn new() State {
+        return .{
+            .timer = DeltaTimer.init(),
+            .angle = 0,
+        };
+    }
+};
+
+fn draw(window: *c.GLFWwindow, prog: c.GLuint, model: Model, state: State) void {
+    var w: c_int = 0;
+    var h: c_int = 0;
+
+    c.glfwGetFramebufferSize(window, &w, &h);
+    c.glViewport(0, 0, w, h);
+    c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT);
+
+    c.glUseProgram(prog);
+    c.glBindVertexArray(model.vao);
+
+    var world = Mat4.translate(0, 0, 0);
+    world = Mat4.mul(Mat4.rot_y(state.angle), world);
+    world = Mat4.mul(Mat4.translate(0, -1.25, -4), world);
+    var proj = Mat4.perspective(0.1, 10);
+
+    c.glUniformMatrix4fv(0, 1, c.GL_TRUE, &world.data);
+    c.glUniformMatrix4fv(1, 1, c.GL_TRUE, &proj.data);
+
+    const num_indices: i32 = @intCast(model.num_indices);
+    c.glDrawElements(c.GL_TRIANGLES, num_indices, c.GL_UNSIGNED_SHORT, null);
+
+    c.glfwSwapBuffers(window);
 }
 
 pub fn main() !void {
