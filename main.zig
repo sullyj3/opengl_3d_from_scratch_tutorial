@@ -161,11 +161,14 @@ const Model = struct {
     num_vertices: usize,
     num_indices: usize,
 
-    fn load() !Model {
+    // Owned
+    nodes: []Node,
+
+    fn load(alloc: Allocator) !Model {
         const MAX_BIN_FILE_SIZE = 50 * 1024;
         var buf: [MAX_BIN_FILE_SIZE]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(&buf);
-        const alloc = fba.allocator();
+        const fba_alloc = fba.allocator();
 
         var vao: c.GLuint = 0;
         c.glGenVertexArrays(1, &vao);
@@ -179,15 +182,15 @@ const Model = struct {
         const ATTR_NORM_IDX = 1;
 
         // upload vertex data
-        const positions = try std.fs.cwd().readFileAlloc(alloc, "positions.bin", buf.len);
+        const positions = try std.fs.cwd().readFileAlloc(fba_alloc, "positions.bin", buf.len);
         const num_positions = positions.len / (3 * @sizeOf(f32));
         c.glNamedBufferData(positions_vbo, @intCast(positions.len), positions.ptr, c.GL_STATIC_DRAW);
         fba.reset();
-        const normals = try std.fs.cwd().readFileAlloc(alloc, "normals.bin", buf.len);
+        const normals = try std.fs.cwd().readFileAlloc(fba_alloc, "normals.bin", buf.len);
         const num_normals = normals.len / (3 * @sizeOf(f32));
         c.glNamedBufferData(normals_vbo, @intCast(normals.len), normals.ptr, c.GL_STATIC_DRAW);
         fba.reset();
-        const indices = try std.fs.cwd().readFileAlloc(alloc, "indices.bin", buf.len);
+        const indices = try std.fs.cwd().readFileAlloc(fba_alloc, "indices.bin", buf.len);
         const num_indices = indices.len / @sizeOf(u16);
         c.glNamedBufferData(indices_ebo, @intCast(indices.len), indices.ptr, c.GL_STATIC_DRAW);
 
@@ -206,7 +209,7 @@ const Model = struct {
         const nodes_data = try std.fs.cwd().readFileAllocOptions(
             alloc,
             "nodes.bin",
-            buf.len,
+            MAX_BIN_FILE_SIZE,
             null,
             @alignOf(Node),
             null,
@@ -215,9 +218,7 @@ const Model = struct {
         const nodes: []Node = std.mem.bytesAsSlice(Node, nodes_data);
         print("{} nodes loaded:\n", .{nodes.len});
 
-        for (nodes) |node| print("{any}\n", .{node});
-
-        fba.reset();
+        // for (nodes) |node| print("{any}\n", .{node});
 
         assert(num_positions == num_normals);
         return Model{
@@ -227,13 +228,15 @@ const Model = struct {
             .indices_ebo = indices_ebo,
             .num_vertices = num_positions,
             .num_indices = num_indices,
+            .nodes = nodes,
         };
     }
 
-    fn deinit(self: Model) void {
+    fn deinit(self: Model, allocator: Allocator) void {
         const buffer_objects = [_]c.GLuint{ self.positions_vbo, self.normals_vbo, self.indices_ebo };
         c.glDeleteBuffers(3, &buffer_objects);
         c.glDeleteVertexArrays(1, &self.vao);
+        allocator.free(self.nodes);
     }
 };
 
@@ -344,8 +347,8 @@ fn opengl_3d_example() !void {
     c.glfwMakeContextCurrent(window);
     c.glfwSwapInterval(1);
 
-    const model = try Model.load();
-    defer model.deinit();
+    const model = try Model.load(alloc);
+    defer model.deinit(alloc);
 
     const prog: c.GLuint = c.glCreateProgram();
     defer c.glDeleteProgram(prog);
